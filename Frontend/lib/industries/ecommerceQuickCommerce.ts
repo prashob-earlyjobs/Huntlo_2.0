@@ -38,7 +38,7 @@ export const ECOMMERCE_QUICK_COMMERCE: IndustryLandingConfig = {
     ],
     primaryCta: "Explore Delivery Hiring Workflows",
     secondaryCta: "Explore AI Voice",
-    secondaryCtaHref: "/platform/voice",
+    secondaryCtaHref: "/platform/voice-ai",
     illustration: {
       variant: "activation-journey",
       header: "Delivery Partner Activation Journey",
@@ -306,7 +306,7 @@ export const ECOMMERCE_QUICK_COMMERCE: IndustryLandingConfig = {
     { label: "Candidate Qualification", href: "/solutions/candidate-qualification" },
     { label: "AI Onboarding Agents", href: "/solutions/ai-onboarding-agents" },
     { label: "HR Follow-Ups", href: "/solutions/hr-follow-ups" },
-    { label: "Huntlo Voice", href: "/platform/voice" },
+    { label: "Huntlo VoiceAI", href: "/platform/voice-ai" },
     { label: "Logistics & Warehousing", href: "/industries/logistics-warehousing" },
     { label: "Retail & QSR", href: "/industries/retail-qsr" },
   ],

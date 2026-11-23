@@ -300,7 +300,7 @@ export const EMPLOYEE_PULSE_SURVEYS: ScreeningWorkflowConfig = {
   ],
   demoTitle: "Huntlo Employee Pulse Surveys",
   demoSubtitle: "Protected feedback themes — silent simulation",
-  demoFooter: "Huntlo Voice · Recurring pulse feedback · Illustrative outcome",
+  demoFooter: "Huntlo VoiceAI · Recurring pulse feedback · Illustrative outcome",
   aiAskTopic: "Huntlo Employee Pulse Surveys voice workflow",
   aiAskPrompt: `What are Huntlo Employee Pulse Surveys on ${EMPLOYEE_PULSE_SURVEYS_PATH} (https://www.huntlo.ai${EMPLOYEE_PULSE_SURVEYS_PATH})? How does a recurring pulse feedback voice workflow collect answers and route a human-reviewed next action?`,
 };

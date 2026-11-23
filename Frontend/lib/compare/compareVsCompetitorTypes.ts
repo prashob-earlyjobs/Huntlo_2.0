@@ -5,7 +5,7 @@ export type CompareRelatedLink = {
 
 /** Verified Huntlo platform and solution URLs for compare-page internal linking. */
 export const COMPARE_PAGE_RELATED_LINKS: readonly CompareRelatedLink[] = [
-  { label: "Huntlo Voice", href: "/platform/voice" },
+  { label: "Huntlo VoiceAI", href: "/platform/voice-ai" },
   { label: "AI Sourcing", href: "/platform/ai-sourcing" },
   { label: "AI Engagement", href: "/platform/ai-engagement" },
   { label: "Conversation Intelligence", href: "/platform/conversation-intelligence" },

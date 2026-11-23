@@ -316,7 +316,7 @@ export const DORMANT_CANDIDATE_REACTIVATION: ScreeningWorkflowConfig = {
   demoTitle: "Huntlo Dormant Candidate Reactivation",
   demoSubtitle: "Previous vs current talent profile — silent simulation",
   demoFooter:
-    "Huntlo Voice · Past applicant outreach · Illustrative outcome",
+    "Huntlo VoiceAI · Past applicant outreach · Illustrative outcome",
   aiAskTopic: "Huntlo Dormant Candidate Reactivation voice workflow",
   aiAskPrompt: `What is Huntlo Dormant Candidate Reactivation on ${DORMANT_CANDIDATE_REACTIVATION_PATH} (https://www.huntlo.ai${DORMANT_CANDIDATE_REACTIVATION_PATH})? How does a past applicant outreach voice workflow collect answers and route a human-reviewed next action?`,
 };

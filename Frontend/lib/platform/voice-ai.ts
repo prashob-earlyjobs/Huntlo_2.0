@@ -2,10 +2,10 @@ import type { PlatformModuleConfig } from "@/lib/platform/moduleTypes";
 import { absoluteUrl, buildPageMetadata, OG_IMAGES } from "@/lib/siteMetadata";
 import { V2_HOME_PATH } from "@/lib/v2Nav";
 
-export const PLATFORM_VOICE_PATH = "/platform/voice";
+export const PLATFORM_VOICE_PATH = "/platform/voice-ai";
 
 export const PLATFORM_VOICE_SEO = {
-  title: "Huntlo Voice | AI Voice Workflows for Hiring Teams",
+  title: "Huntlo VoiceAI | AI Voice Workflows for Hiring Teams",
   description:
     "Explore visual workflows for AI voice screening, interview coordination, joining follow-ups and human review.",
 } as const;
@@ -16,12 +16,12 @@ export const PLATFORM_VOICE: PlatformModuleConfig = {
   breadcrumbs: [
     { name: "Home", href: V2_HOME_PATH },
     { name: "Platform", href: "/platform" },
-    { name: "Huntlo Voice", href: PLATFORM_VOICE_PATH },
+    { name: "Huntlo VoiceAI", href: PLATFORM_VOICE_PATH },
   ],
-  eyebrow: "Huntlo · Huntlo Voice",
+  eyebrow: "Huntlo · Huntlo VoiceAI",
   h1: "Every workforce conversation deserves a clear next step.",
   heroBody:
-    "Candidates need answers, recruiters need context, and HR teams need to know what happens next. Huntlo Voice connects configured conversations with structured outcomes and human review.",
+    "Candidates need answers, recruiters need context, and HR teams need to know what happens next. Huntlo VoiceAI connects configured conversations with structured outcomes and human review.",
   heroPills: [
     { icon: "userCheck", label: "Screening" },
     { icon: "clipboard", label: "Joining" },
@@ -29,9 +29,9 @@ export const PLATFORM_VOICE: PlatformModuleConfig = {
   ],
   problemBody:
     "When screening notes, interview coordination and joining follow-ups sit in different tools, hiring teams spend more time reconstructing context than moving candidates forward. A clearer voice workflow keeps the purpose of each conversation, the response captured, and the next responsible action visible — without inventing performance metrics.",
-  answerH2: "What is Huntlo Voice?",
+  answerH2: "What is Huntlo VoiceAI?",
   answerBody:
-    "Huntlo Voice is presented here as a voice-led workforce conversation workflow. Exact operational capabilities must match the live product and be confirmed before publishing.",
+    "Huntlo VoiceAI is presented here as a voice-led workforce conversation workflow. Exact operational capabilities must match the live product and be confirmed before publishing.",
   answerNote:
     "This page shows illustrative visual workflows for screening, interview coordination, joining follow-ups and reviewer handoff. It does not include a live voice demo.",
   howStages: [
@@ -89,9 +89,9 @@ export const PLATFORM_VOICE: PlatformModuleConfig = {
   trustDecision: "HR confirms the joining date and shares site reporting instructions.",
   faqs: [
     {
-      question: "What is Huntlo Voice?",
+      question: "What is Huntlo VoiceAI?",
       answer:
-        "Candidates need answers, recruiters need context, and HR teams need to know what happens next. Huntlo Voice connects configured conversations with structured outcomes and human review.",
+        "Candidates need answers, recruiters need context, and HR teams need to know what happens next. Huntlo VoiceAI connects configured conversations with structured outcomes and human review.",
     },
     {
       question: "Does the website include a live voice demo?",
@@ -116,7 +116,7 @@ export const PLATFORM_VOICE: PlatformModuleConfig = {
     { label: "Conversation Intelligence", href: "/platform/conversation-intelligence" },
     { label: "AI Sourcing", href: "/platform/ai-sourcing" },
   ],
-  aboutName: "Huntlo Voice",
+  aboutName: "Huntlo VoiceAI",
 };
 
 export function platformVoiceMetadata() {

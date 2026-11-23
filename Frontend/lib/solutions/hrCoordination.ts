@@ -134,7 +134,7 @@ export const HR_COORDINATION: PlatformModuleConfig = {
     "Explore how Huntlo connects employee conversations, onboarding requirements and HR coordination.",
   related: [
     { label: "AI Onboarding Agents", href: "/solutions/ai-onboarding-agents" },
-    { label: "Huntlo Voice", href: "/platform/voice" },
+    { label: "Huntlo VoiceAI", href: "/platform/voice-ai" },
     { label: "AI Engagement", href: "/platform/ai-engagement" },
   ],
   aboutName: "Huntlo AI HR Coordination",

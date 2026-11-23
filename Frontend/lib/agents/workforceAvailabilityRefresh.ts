@@ -316,7 +316,7 @@ export const WORKFORCE_AVAILABILITY_REFRESH: ScreeningWorkflowConfig = {
   demoTitle: "Huntlo Workforce Availability Refresh",
   demoSubtitle: "Previous vs current talent profile — silent simulation",
   demoFooter:
-    "Huntlo Voice · Availability and preference updates · Illustrative outcome",
+    "Huntlo VoiceAI · Availability and preference updates · Illustrative outcome",
   aiAskTopic: "Huntlo Workforce Availability Refresh voice workflow",
   aiAskPrompt: `What is Huntlo Workforce Availability Refresh on ${WORKFORCE_AVAILABILITY_REFRESH_PATH} (https://www.huntlo.ai${WORKFORCE_AVAILABILITY_REFRESH_PATH})? How does an availability and preference update voice workflow collect answers and route a human-reviewed next action?`,
 };

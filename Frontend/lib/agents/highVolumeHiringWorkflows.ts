@@ -304,7 +304,7 @@ export const HIGH_VOLUME_HIRING_WORKFLOWS: ScreeningWorkflowConfig = {
   ],
   demoTitle: "Huntlo High-Volume Hiring",
   demoSubtitle: "Interview journey + action queue — silent simulation",
-  demoFooter: "Huntlo Voice · Bulk recruitment · Illustrative outcome",
+  demoFooter: "Huntlo VoiceAI · Bulk recruitment · Illustrative outcome",
   aiAskTopic: "Huntlo High-Volume Hiring Workflows",
   aiAskPrompt: `What are Huntlo High-Volume Hiring Workflows on ${HIGH_VOLUME_HIRING_WORKFLOWS_PATH} (https://www.huntlo.ai${HIGH_VOLUME_HIRING_WORKFLOWS_PATH})? How does a bulk recruitment campaign voice workflow collect answers and route a human-reviewed next action?`,
 };

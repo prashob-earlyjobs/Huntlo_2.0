@@ -306,7 +306,7 @@ export const PRE_JOINING_ENGAGEMENT: ScreeningWorkflowConfig = {
   ],
   demoTitle: "Huntlo Pre-Joining Engagement",
   demoSubtitle: "Offer-to-day-one timeline — silent simulation",
-  demoFooter: "Huntlo Voice · Pre-joining communication · Illustrative outcome",
+  demoFooter: "Huntlo VoiceAI · Pre-joining communication · Illustrative outcome",
   aiAskTopic: "Huntlo Pre-Joining Engagement voice workflow",
   aiAskPrompt: `What is Huntlo Pre-Joining Engagement on ${PRE_JOINING_ENGAGEMENT_PATH} (https://www.huntlo.ai${PRE_JOINING_ENGAGEMENT_PATH})? How does a pre-joining communication voice workflow collect answers and route a human-reviewed next action?`,
 };

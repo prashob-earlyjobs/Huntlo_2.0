@@ -295,9 +295,9 @@ export const AI_VOICE_INTERVIEWS: ScreeningWorkflowConfig = {
       status: "stopped",
     },
   ],
-  demoTitle: "Huntlo Voice Interviews",
+  demoTitle: "Huntlo VoiceAI Interviews",
   demoSubtitle: "Interview journey + action queue — silent simulation",
-  demoFooter: "Huntlo Voice · First-round interview · Illustrative outcome",
+  demoFooter: "Huntlo VoiceAI · First-round interview · Illustrative outcome",
   aiAskTopic: "Huntlo AI Voice Interviews workflow",
   aiAskPrompt: `What is Huntlo AI Voice Interviews on ${AI_VOICE_INTERVIEWS_PATH} (https://www.huntlo.ai${AI_VOICE_INTERVIEWS_PATH})? How does a structured first-round interview voice workflow collect answers and route a human-reviewed next action?`,
 };

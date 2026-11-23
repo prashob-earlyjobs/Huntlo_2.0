@@ -312,7 +312,7 @@ export const FRONTLINE_WORKFORCE_ONBOARDING: ScreeningWorkflowConfig = {
   demoTitle: "Huntlo Frontline Workforce Onboarding",
   demoSubtitle: "Offer-to-day-one timeline — silent simulation",
   demoFooter:
-    "Huntlo Voice · Distributed frontline joining · Illustrative outcome",
+    "Huntlo VoiceAI · Distributed frontline joining · Illustrative outcome",
   aiAskTopic: "Huntlo Frontline Workforce Onboarding voice workflow",
   aiAskPrompt: `What is Huntlo Frontline Workforce Onboarding on ${FRONTLINE_WORKFORCE_ONBOARDING_PATH} (https://www.huntlo.ai${FRONTLINE_WORKFORCE_ONBOARDING_PATH})? How does a distributed frontline joining voice workflow collect answers and route a human-reviewed next action?`,
 };

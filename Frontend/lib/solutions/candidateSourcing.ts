@@ -115,7 +115,7 @@ export const CANDIDATE_SOURCING: PlatformModuleConfig = {
   related: [
     { label: "AI Sourcing (verified)", href: "/sourcing" },
     { label: "AI Engagement", href: "/platform/ai-engagement" },
-    { label: "Huntlo Voice", href: "/platform/voice" },
+    { label: "Huntlo VoiceAI", href: "/platform/voice-ai" },
   ],
   aboutName: "Huntlo Candidate Sourcing",
 };

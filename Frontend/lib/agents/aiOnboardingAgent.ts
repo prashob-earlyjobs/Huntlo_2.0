@@ -304,7 +304,7 @@ export const AI_ONBOARDING_AGENT: ScreeningWorkflowConfig = {
   ],
   demoTitle: "Huntlo AI Onboarding Agent",
   demoSubtitle: "Offer-to-day-one timeline — silent simulation",
-  demoFooter: "Huntlo Voice · Offer-to-joining readiness · Illustrative outcome",
+  demoFooter: "Huntlo VoiceAI · Offer-to-joining readiness · Illustrative outcome",
   aiAskTopic: "Huntlo AI Onboarding Agent voice workflow",
   aiAskPrompt: `What is the Huntlo AI Onboarding Agent on ${AI_ONBOARDING_AGENT_PATH} (https://www.huntlo.ai${AI_ONBOARDING_AGENT_PATH})? How does an offer-to-joining readiness voice workflow collect answers and route a human-reviewed next action?`,
 };

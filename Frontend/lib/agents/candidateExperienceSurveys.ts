@@ -304,7 +304,7 @@ export const CANDIDATE_EXPERIENCE_SURVEYS: ScreeningWorkflowConfig = {
   ],
   demoTitle: "Huntlo Candidate Experience Surveys",
   demoSubtitle: "Protected feedback themes — silent simulation",
-  demoFooter: "Huntlo Voice · Candidate journey feedback · Illustrative outcome",
+  demoFooter: "Huntlo VoiceAI · Candidate journey feedback · Illustrative outcome",
   aiAskTopic: "Huntlo Candidate Experience Surveys voice workflow",
   aiAskPrompt: `What are Huntlo Candidate Experience Surveys on ${CANDIDATE_EXPERIENCE_SURVEYS_PATH} (https://www.huntlo.ai${CANDIDATE_EXPERIENCE_SURVEYS_PATH})? How does a candidate journey feedback voice workflow collect answers and route a human-reviewed next action?`,
 };

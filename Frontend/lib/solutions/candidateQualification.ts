@@ -135,7 +135,7 @@ export const CANDIDATE_QUALIFICATION: PlatformModuleConfig = {
   related: [
     { label: "AI Hiring Agents", href: "/solutions/ai-hiring-agents" },
     { label: "AI Sourcing", href: CANDIDATE_SOURCING_PATH },
-    { label: "Huntlo Voice", href: "/platform/voice" },
+    { label: "Huntlo VoiceAI", href: "/platform/voice-ai" },
   ],
   aboutName: "Huntlo AI Candidate Qualification",
 };

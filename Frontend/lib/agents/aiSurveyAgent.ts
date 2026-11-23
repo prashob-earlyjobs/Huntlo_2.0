@@ -297,7 +297,7 @@ export const AI_SURVEY_AGENT: ScreeningWorkflowConfig = {
   ],
   demoTitle: "Huntlo AI Survey Agent",
   demoSubtitle: "Protected feedback themes — silent simulation",
-  demoFooter: "Huntlo Voice · Conversational employee surveys · Illustrative outcome",
+  demoFooter: "Huntlo VoiceAI · Conversational employee surveys · Illustrative outcome",
   aiAskTopic: "Huntlo AI Survey Agent voice workflow",
   aiAskPrompt: `What is the Huntlo AI Survey Agent on ${AI_SURVEY_AGENT_PATH} (https://www.huntlo.ai${AI_SURVEY_AGENT_PATH})? How does a conversational employee survey voice workflow collect answers and route a human-reviewed next action?`,
 };

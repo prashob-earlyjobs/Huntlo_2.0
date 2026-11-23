@@ -109,7 +109,7 @@ export function Results() {
 }
 
 const faqs = [
-  ["What does Huntlo Voice do?", "Huntlo Voice runs the repetitive workforce conversations — screening, follow-ups and confirmations — and turns every response into structured data and a next step."],
+  ["What does Huntlo VoiceAI do?", "Huntlo VoiceAI runs the repetitive workforce conversations — screening, follow-ups and confirmations — and turns every response into structured data and a next step."],
   ["Does Huntlo replace my recruiters?", "No. Huntlo handles repetitive calls and follow-ups so recruiters spend time on the conversations that need a person."],
   ["Which languages does it speak?", "English and several Indian languages. Your team can confirm the right ones for your roles during setup."],
   ["How long does setup take?", "Setup starts with your roles and screening questions, then a pilot before going live."],

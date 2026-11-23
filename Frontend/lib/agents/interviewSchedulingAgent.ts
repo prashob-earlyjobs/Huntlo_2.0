@@ -299,7 +299,7 @@ export const INTERVIEW_SCHEDULING_AGENT: ScreeningWorkflowConfig = {
   ],
   demoTitle: "Huntlo Interview Scheduling",
   demoSubtitle: "Interview journey + action queue — silent simulation",
-  demoFooter: "Huntlo Voice · Interview scheduling · Illustrative outcome",
+  demoFooter: "Huntlo VoiceAI · Interview scheduling · Illustrative outcome",
   aiAskTopic: "Huntlo Interview Scheduling Agent voice workflow",
   aiAskPrompt: `What is the Huntlo Interview Scheduling Agent on ${INTERVIEW_SCHEDULING_AGENT_PATH} (https://www.huntlo.ai${INTERVIEW_SCHEDULING_AGENT_PATH})? How does an interview scheduling voice workflow collect answers and route a human-reviewed next action?`,
 };

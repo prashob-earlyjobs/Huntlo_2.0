@@ -614,7 +614,7 @@ function IndustriesOverviewMockup() {
 const RESOURCE_CATEGORIES = [
   { label: "Blog", href: "/blog" },
   { label: "FAQs", href: "/faqs" },
-  { label: "Capabilities", href: "/platform/voice" },
+  { label: "Capabilities", href: "/platform/voice-ai" },
   { label: "Comparisons", href: "/compare" },
   { label: "Learn", href: "/learn" },
   { label: "Docs", href: "/docs" },
@@ -647,9 +647,9 @@ const FEATURED_RESOURCES = [
   },
   {
     category: "Capabilities",
-    title: "Huntlo Voice",
+    title: "Huntlo VoiceAI",
     body: "Illustrative voice workflows for screening and follow-up.",
-    href: "/platform/voice",
+    href: "/platform/voice-ai",
   },
   {
     category: "Tools",
@@ -720,77 +720,108 @@ function ProductExperienceMockup({ variant }: { variant: PlatformModuleConfig["p
 
 type ConfigProps = { config: PlatformModuleConfig };
 
-export function PlatformModuleHero({ config }: ConfigProps) {
-  return (
-    <section className="container-x pt-10 md:pt-12 lg:pt-14" aria-labelledby="module-h1">
-      <nav aria-label="Breadcrumb" className="mb-5 text-sm text-muted-foreground md:mb-6 lg:mb-7">
-        <ol className="flex flex-wrap items-center gap-2">
-          {config.breadcrumbs.map((item, index) => {
-            const isCurrent = index === config.breadcrumbs.length - 1;
-            return (
-              <li key={item.name} className="flex items-center gap-2">
-                {index > 0 ? <span aria-hidden>/</span> : null}
-                {isCurrent ? (
-                  <span className="text-foreground" aria-current="page">
-                    {item.name}
-                  </span>
-                ) : (
-                  <a href={item.href} className="hover:text-primary">
-                    {item.name}
-                  </a>
-                )}
-              </li>
-            );
-          })}
-        </ol>
-      </nav>
+/** Same smooth blue hero wash as AI Screening — only these module pages. */
+const HERO_BLUE_FLOW_PATHS = new Set([
+  "/platform/voice-ai",
+  "/platform/ai-sourcing",
+  "/platform/ai-engagement",
+  "/platform/conversation-intelligence",
+  "/solutions/candidate-sourcing",
+  "/solutions/candidate-qualification",
+  "/solutions/hr-coordination",
+  "/solutions/concern-identification",
+  "/solutions/hr-follow-ups",
+  "/solutions/ai-hiring-agents",
+  "/solutions/ai-onboarding-agents",
+  "/solutions/ai-retention-agents",
+]);
 
-      <div className="grid min-w-0 items-start gap-10 lg:grid-cols-[1fr_1.15fr] lg:gap-12">
-        <div className="animate-rise min-w-0">
-          <Eyebrow>{config.eyebrow}</Eyebrow>
-          <h1
-            id="module-h1"
-            className="font-display-tight mt-4 text-[clamp(2.35rem,1.45rem+3vw,3.75rem)] text-foreground md:mt-3"
-          >
-            {config.h1}
-          </h1>
-          <p className="mt-5 max-w-xl text-base leading-relaxed text-muted-foreground md:text-lg">
-            {config.heroBody}
-          </p>
-          <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:items-center">
-            <a
-              href={V2_BOOK_DEMO_PATH}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="group inline-flex min-h-11 w-fit items-center gap-3 rounded-full bg-primary py-1.5 pl-6 pr-1.5 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary-deep"
-            >
-              Book a Demo
-              <span className="grid h-9 w-9 place-items-center rounded-full bg-primary-foreground text-primary transition-transform group-hover:translate-x-0.5">
-                <ArrowRight className="h-4 w-4" />
-              </span>
-            </a>
-            <a
-              href="#how-it-works"
-              className="inline-flex min-h-11 w-fit items-center rounded-full border border-border px-6 py-3 text-sm font-medium text-foreground transition-colors hover:bg-muted"
-            >
-              Explore Workflow
-            </a>
-          </div>
-          <ul className="mt-8 flex flex-wrap gap-x-6 gap-y-2 text-sm text-muted-foreground">
-            {config.heroPills.map(({ icon, label }) => {
-              const Icon = PLATFORM_ICONS[icon];
+export function PlatformModuleHero({ config }: ConfigProps) {
+  const showBlueFlow = HERO_BLUE_FLOW_PATHS.has(config.path);
+
+  return (
+    <section
+      className={cn(showBlueFlow && "relative overflow-hidden")}
+      aria-labelledby="module-h1"
+    >
+      {showBlueFlow ? (
+        <>
+          <div className="bg-grid pointer-events-none absolute inset-0 opacity-60" aria-hidden />
+          <Flow className="bottom-0 h-[55%] opacity-90" />
+        </>
+      ) : null}
+      <div className="container-x relative pt-10 md:pt-12 lg:pt-14">
+        <nav aria-label="Breadcrumb" className="mb-5 text-sm text-muted-foreground md:mb-6 lg:mb-7">
+          <ol className="flex flex-wrap items-center gap-2">
+            {config.breadcrumbs.map((item, index) => {
+              const isCurrent = index === config.breadcrumbs.length - 1;
               return (
-                <li key={label} className="inline-flex items-center gap-2">
-                  <Icon className="h-4 w-4 text-primary" aria-hidden />
-                  {label}
+                <li key={item.name} className="flex items-center gap-2">
+                  {index > 0 ? <span aria-hidden>/</span> : null}
+                  {isCurrent ? (
+                    <span className="text-foreground" aria-current="page">
+                      {item.name}
+                    </span>
+                  ) : (
+                    <a href={item.href} className="hover:text-primary">
+                      {item.name}
+                    </a>
+                  )}
                 </li>
               );
             })}
-          </ul>
-        </div>
+          </ol>
+        </nav>
 
-        <div className="animate-rise min-w-0 w-full max-w-full" style={{ animationDelay: "80ms" }}>
-          <ProductExperienceMockup variant={config.productVariant} />
+        <div className="grid min-w-0 items-start gap-10 lg:grid-cols-[1fr_1.15fr] lg:gap-12">
+          <div className="animate-rise min-w-0">
+            <Eyebrow>{config.eyebrow}</Eyebrow>
+            <h1
+              id="module-h1"
+              className="font-display-tight mt-4 text-[clamp(2.35rem,1.45rem+3vw,3.75rem)] text-foreground md:mt-3"
+            >
+              {config.h1}
+            </h1>
+            <p className="mt-5 max-w-xl text-base leading-relaxed text-muted-foreground md:text-lg">
+              {config.heroBody}
+            </p>
+            <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:items-center">
+              <a
+                href={V2_BOOK_DEMO_PATH}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="group inline-flex min-h-11 w-fit items-center gap-3 rounded-full bg-primary py-1.5 pl-6 pr-1.5 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary-deep"
+              >
+                Book a Demo
+                <span className="grid h-9 w-9 place-items-center rounded-full bg-primary-foreground text-primary transition-transform group-hover:translate-x-0.5">
+                  <ArrowRight className="h-4 w-4" />
+                </span>
+              </a>
+              <a
+                href="#how-it-works"
+                className="inline-flex min-h-11 w-fit items-center rounded-full border border-border bg-white px-6 py-3 text-sm font-medium text-black transition-colors hover:bg-white/90"
+              >
+                Explore Workflow
+              </a>
+            </div>
+            {showBlueFlow ? null : (
+              <ul className="mt-8 flex flex-wrap gap-x-6 gap-y-2 text-sm text-muted-foreground">
+                {config.heroPills.map(({ icon, label }) => {
+                  const Icon = PLATFORM_ICONS[icon];
+                  return (
+                    <li key={label} className="inline-flex items-center gap-2">
+                      <Icon className="h-4 w-4 text-primary" aria-hidden />
+                      {label}
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+          </div>
+
+          <div className="animate-rise min-w-0 w-full max-w-full" style={{ animationDelay: "80ms" }}>
+            <ProductExperienceMockup variant={config.productVariant} />
+          </div>
         </div>
       </div>
     </section>
