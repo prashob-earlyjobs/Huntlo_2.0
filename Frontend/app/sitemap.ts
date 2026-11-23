@@ -573,6 +573,43 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
 
     { url: `${SITE_URL}/pricing`, lastModified: new Date(), changeFrequency: "weekly", priority: 0.9 },
     { url: `${SITE_URL}/industries`, lastModified: new Date(), changeFrequency: "weekly", priority: 0.9 },
+    {
+      url: `${SITE_URL}/industries/logistics-warehousing`,
+      lastModified: new Date(),
+      changeFrequency: "monthly",
+      priority: 0.88,
+    },
+    {
+      url: `${SITE_URL}/industries/ecommerce-quick-commerce`,
+      lastModified: new Date(),
+      changeFrequency: "monthly",
+      priority: 0.88,
+    },
+    {
+      url: `${SITE_URL}/industries/retail-qsr`,
+      lastModified: new Date(),
+      changeFrequency: "monthly",
+      priority: 0.88,
+    },
+    {
+      url: `${SITE_URL}/industries/bpo-customer-support`,
+      lastModified: new Date(),
+      changeFrequency: "monthly",
+      priority: 0.88,
+    },
+    {
+      url: `${SITE_URL}/industries/manufacturing`,
+      lastModified: new Date(),
+      changeFrequency: "monthly",
+      priority: 0.88,
+    },
+    {
+      url: `${SITE_URL}/industries/staffing-recruitment`,
+      lastModified: new Date(),
+      changeFrequency: "monthly",
+      priority: 0.88,
+    },
+
     { url: `${SITE_URL}/resources`, lastModified: new Date(), changeFrequency: "weekly", priority: 0.9 },
     { url: `${SITE_URL}/docs`, lastModified: new Date(), changeFrequency: "monthly", priority: 0.85 },
     { url: `${SITE_URL}/blog`, lastModified: new Date(), changeFrequency: "daily", priority: 0.9 },
@@ -595,7 +632,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const compareRoutes: MetadataRoute.Sitemap = COMPARISON_HUB_ENTRIES.map((entry) => ({
     url: `${SITE_URL}${entry.href}`,
     lastModified: new Date(),
-    changeFrequency: "monthly",
+    changeFrequency: "monthly" as const,
     priority: 0.82,
   }));
 

@@ -24,6 +24,7 @@ import {
 } from "@/lib/v2Nav";
 
 const platformIcons = [AudioLines, Search, MessagesSquare, BarChart3] as const;
+const MENU_CLOSE_MS = 180;
 
 function withIcons(items: V2NavItem[], icons: readonly ComponentType<{ className?: string }>[]) {
   return items.map((item, i) => ({ ...item, icon: icons[i] ?? AudioLines }));
@@ -43,26 +44,49 @@ export function Navbar() {
   const [accordion, setAccordion] = useState<string | null>(null);
   const [scrolled, setScrolled] = useState(false);
   const navRef = useRef<HTMLElement>(null);
+  const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const menuId = useId();
+
+  const clearCloseTimer = () => {
+    if (closeTimerRef.current) {
+      clearTimeout(closeTimerRef.current);
+      closeTimerRef.current = null;
+    }
+  };
+
+  const openMenu = (name: string) => {
+    clearCloseTimer();
+    setOpen(name);
+  };
+
+  const scheduleCloseMenu = () => {
+    clearCloseTimer();
+    closeTimerRef.current = setTimeout(() => setOpen(null), MENU_CLOSE_MS);
+  };
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 8);
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
+        clearCloseTimer();
         setOpen(null);
         setDrawer(false);
       }
     };
-    const onClick = (e: MouseEvent) => {
-      if (!navRef.current?.contains(e.target as Node)) setOpen(null);
+    const onPointerDown = (e: PointerEvent) => {
+      if (!navRef.current?.contains(e.target as Node)) {
+        clearCloseTimer();
+        setOpen(null);
+      }
     };
     window.addEventListener("scroll", onScroll, { passive: true });
     window.addEventListener("keydown", onKey);
-    document.addEventListener("click", onClick);
+    document.addEventListener("pointerdown", onPointerDown);
     return () => {
       window.removeEventListener("scroll", onScroll);
       window.removeEventListener("keydown", onKey);
-      document.removeEventListener("click", onClick);
+      document.removeEventListener("pointerdown", onPointerDown);
+      clearCloseTimer();
     };
   }, []);
 
@@ -76,7 +100,7 @@ export function Navbar() {
   return (
     <header
       className={cn(
-        "sticky top-0 z-[110] border-b transition-[background-color,border-color,backdrop-filter]",
+        "sticky top-0 z-[110] overflow-visible border-b transition-[background-color,border-color,backdrop-filter]",
         scrolled
           ? "border-border bg-background/85 backdrop-blur-md"
           : "border-transparent bg-background",
@@ -84,14 +108,14 @@ export function Navbar() {
     >
       <nav
         ref={navRef}
-        className="container-x relative flex h-16 items-center justify-between gap-4"
+        className="container-x relative flex h-16 items-center justify-between gap-4 overflow-visible"
         aria-label="Main"
       >
         <a href={V2_HOME_PATH} className="shrink-0" aria-label="Huntlo home">
           <Logo />
         </a>
 
-        <ul className="hidden items-center gap-1 lg:flex">
+        <ul className="hidden items-center gap-1 overflow-visible lg:flex">
           {dropdownNames.map((name) => {
             const panelId = `${menuId}-${name}`;
             const isSolutions = name === "Solutions";
@@ -99,9 +123,9 @@ export function Navbar() {
             return (
               <li
                 key={name}
-                className="relative"
-                onMouseEnter={() => setOpen(name)}
-                onMouseLeave={() => setOpen(null)}
+                className="relative overflow-visible"
+                onMouseEnter={() => openMenu(name)}
+                onMouseLeave={scheduleCloseMenu}
               >
                 <button
                   type="button"
@@ -109,8 +133,8 @@ export function Navbar() {
                   aria-expanded={isOpen}
                   aria-controls={panelId}
                   aria-haspopup="true"
-                  onClick={() => setOpen(isOpen ? null : name)}
-                  onFocus={() => setOpen(name)}
+                  onClick={() => (isOpen ? scheduleCloseMenu() : openMenu(name))}
+                  onFocus={() => openMenu(name)}
                 >
                   {name}
                   <ChevronDown
@@ -128,12 +152,13 @@ export function Navbar() {
                       "absolute top-full z-[120] pt-2",
                       isSolutions
                         ? "left-1/2 w-[min(44rem,calc(100vw-2rem))] -translate-x-1/2"
-                        : "left-1/2 w-[22rem] -translate-x-1/2",
+                        : "left-0 w-[22rem]",
                     )}
                   >
                     {isSolutions ? (
                       <div className="animate-rise">
-                        <SolutionsMegaMenu onNavigate={() => setOpen(null)} />
+                        {/* Don't unmount on click — closing before navigation cancels the <a> default. */}
+                        <SolutionsMegaMenu />
                       </div>
                     ) : (
                       <div className="animate-rise rounded-2xl border border-border bg-popover p-2 shadow-lift">
@@ -141,7 +166,6 @@ export function Navbar() {
                           <a
                             key={it.href}
                             href={it.href}
-                            onClick={() => setOpen(null)}
                             className="flex min-h-11 gap-3 rounded-xl p-3 hover:bg-muted focus-visible:bg-muted focus-visible:outline-none"
                           >
                             <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg border border-border bg-accent text-primary">
@@ -230,7 +254,6 @@ export function Navbar() {
                       <div className="pb-2">
                         <SolutionsMegaMenu
                           stacked
-                          onNavigate={() => setDrawer(false)}
                           className="border-0 bg-transparent p-0 shadow-none"
                         />
                       </div>
@@ -240,7 +263,6 @@ export function Navbar() {
                           <a
                             key={it.href}
                             href={it.href}
-                            onClick={() => setDrawer(false)}
                             className="flex min-h-11 items-center gap-3 rounded-xl px-2 py-2 hover:bg-muted"
                           >
                             <it.icon className="h-4 w-4 text-primary" />
@@ -257,7 +279,6 @@ export function Navbar() {
                 <a
                   key={l.label}
                   href={l.href}
-                  onClick={() => setDrawer(false)}
                   className="flex min-h-11 items-center px-2 font-medium"
                 >
                   {l.label}

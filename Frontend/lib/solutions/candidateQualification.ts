@@ -1,6 +1,7 @@
-import type { SolutionLandingConfig } from "@/lib/solutions/solutionLandingTypes";
+import type { PlatformModuleConfig } from "@/lib/platform/moduleTypes";
 import { absoluteUrl, buildPageMetadata, OG_IMAGES } from "@/lib/siteMetadata";
-import { V2_BOOK_DEMO_PATH, V2_HOME_PATH } from "@/lib/v2Nav";
+import { CANDIDATE_SOURCING_PATH } from "@/lib/solutions/candidateSourcing";
+import { V2_HOME_PATH } from "@/lib/v2Nav";
 
 export const CANDIDATE_QUALIFICATION_PATH = "/solutions/candidate-qualification";
 
@@ -10,9 +11,8 @@ export const CANDIDATE_QUALIFICATION_SEO = {
     "Qualify candidates through AI voice conversations and structured workflows. Capture job fit, availability and hiring readiness with Huntlo.",
 } as const;
 
-export const CANDIDATE_QUALIFICATION: SolutionLandingConfig = {
+export const CANDIDATE_QUALIFICATION: PlatformModuleConfig = {
   path: CANDIDATE_QUALIFICATION_PATH,
-  tone: "hiring",
   seo: CANDIDATE_QUALIFICATION_SEO,
   breadcrumbs: [
     { name: "Home", href: V2_HOME_PATH },
@@ -20,126 +20,84 @@ export const CANDIDATE_QUALIFICATION: SolutionLandingConfig = {
     { name: "AI Hiring Agents", href: "/solutions/ai-hiring-agents" },
     { name: "Candidate Qualification", href: CANDIDATE_QUALIFICATION_PATH },
   ],
-  eyebrow: "AI Candidate Qualification",
+  eyebrow: "Huntlo · AI Candidate Qualification",
   h1: "Qualify Candidates Through AI Voice Conversations",
   heroBody:
     "Know which candidates are ready before your recruiters call. Huntlo uses voice-powered AI agents and structured workflows to engage candidates, gather role-specific information and organise qualification results for recruiter review.",
-  definition:
-    "AI candidate qualification uses automated systems to collect and organise information relevant to job requirements. Recruiters can use this information to support candidate review and subsequent hiring decisions.",
-  primaryCta: { label: "Book a Demo", href: V2_BOOK_DEMO_PATH, external: true },
-  secondaryCta: { label: "Explore AI Hiring Agents", href: "/solutions/ai-hiring-agents" },
-  problemH2: "Too Many Conversations. Too Little Hiring Clarity.",
-  problemBody:
-    "Recruiters spend significant time contacting candidates to confirm basic information. Availability, location preferences, experience, compensation expectations and joining timelines often remain unclear until a recruiter reaches them directly. When these details are scattered across calls, messages and spreadsheets, qualification becomes harder to manage consistently.",
-  problemCards: [
-    {
-      title: "Repeated screening conversations",
-      body: "Recruiters ask similar questions across high volumes of applicants.",
-    },
-    {
-      title: "Incomplete candidate information",
-      body: "Important hiring details are missing or captured inconsistently.",
-    },
-    {
-      title: "Delayed recruiter decisions",
-      body: "Teams struggle to identify which candidates are ready for the next step.",
-    },
+  heroPills: [
+    { icon: "clipboard", label: "Role requirements" },
+    { icon: "users", label: "Voice engagement" },
+    { icon: "userCheck", label: "Recruiter review" },
   ],
-  solutionH2: "Turn Candidate Conversations into Structured Qualification Workflows.",
-  solutionBody:
-    "Huntlo connects conversational engagement with the information recruiters need to evaluate candidates and move hiring forward.",
-  workflowEyebrow: "Illustrative candidate qualification workflow",
-  workflowSteps: [
+  problemBody:
+    "Recruiters spend significant time contacting candidates to confirm basic information. Availability, location preferences, experience, compensation expectations and joining timelines often remain unclear until a recruiter reaches them directly. When these details are scattered across calls, messages and spreadsheets, qualification becomes harder to manage consistently — repeated screening conversations, incomplete candidate information and delayed recruiter decisions.",
+  answerH2: "What is AI Candidate Qualification?",
+  answerBody:
+    "AI candidate qualification uses automated systems to collect and organise information relevant to job requirements. Recruiters can use this information to support candidate review and subsequent hiring decisions.",
+  answerNote:
+    "Huntlo connects conversational engagement with the information recruiters need to evaluate candidates and move hiring forward. Recruiters remain responsible for evaluating candidates and making hiring decisions.",
+  howStages: [
     {
       title: "Define role requirements",
-      body: "Set the qualification questions and criteria for the vacancy.",
+      source: "Qualification questions and criteria for the vacancy",
+      captured: "Role-specific screening brief",
+      owner: "Recruiter owns requirement framing",
     },
     {
       title: "Engage the candidate",
-      body: "Initiate an AI voice conversation through the configured workflow.",
+      source: "Configured AI voice conversation",
+      captured: "Conversation started with permitted contact",
+      owner: "System surfaces; recruiter confirms scope",
     },
     {
       title: "Capture relevant responses",
-      body: "Gather experience, availability, location and role-specific information.",
+      source: "Experience, availability, location and role-specific answers",
+      captured: "Structured qualification responses",
+      owner: "Recruiter reviews captured context",
     },
     {
       title: "Organise qualification results",
-      body: "Present structured responses for recruiter assessment.",
+      source: "Conversation summary and field responses",
+      captured: "Reviewable qualification workspace",
+      owner: "Recruiter assesses readiness",
     },
     {
       title: "Move to the next action",
-      body: "Route the candidate for review, clarification or further hiring steps.",
+      source: "Qualification context ready for handoff",
+      captured: "Review, clarification or further hiring step",
+      owner: "Recruiter owns consequential next step",
     },
   ],
-  capabilitiesH2: "Built Around the Questions That Matter in Hiring.",
-  capabilities: [
+  productVariant: "hiring",
+  whoCards: [
     {
-      title: "Role-Specific Questions",
-      body: "Structure qualification around the requirements of each open position.",
-    },
-    {
-      title: "Voice-Based Engagement",
-      body: "Collect candidate responses through natural conversations.",
-    },
-    {
-      title: "Availability and Joining Readiness",
-      body: "Understand candidate timelines and practical constraints.",
-    },
-    {
-      title: "Structured Candidate Summaries",
-      body: "Make responses easier for recruiters to review.",
-    },
-    {
-      title: "Qualification Workflows",
-      body: "Define what happens after each conversation.",
-    },
-    {
-      title: "Human Review and Handoff",
-      body: "Keep recruiters responsible for consequential hiring decisions.",
-    },
-  ],
-  productH2: "One Candidate. One Clear Qualification View.",
-  productBody:
-    "See how role requirements, conversation responses and recruiter next actions can sit in one qualification workspace — clearly marked as an illustrative product workflow.",
-  productNote:
-    "Illustrative product workflow. Avoid treating any status label as an automated hiring decision. Recruiters remain responsible for evaluating candidates.",
-  useCasesH2: "Candidate Qualification Across High-Volume and Specialist Hiring.",
-  useCases: [
-    {
+      icon: "factory",
       title: "Frontline and volume hiring",
       body: "Confirm shift fit, location preference and joining readiness before recruiters prioritise outreach.",
+      href: "/in/ai-voice-logistics-warehouse-hiring",
+      linkLabel: "Logistics hiring page",
     },
     {
+      icon: "building",
       title: "Staffing and recruitment agencies",
       body: "Organise mandate-specific answers so desks can review candidates with clearer client context.",
+      href: "/ai-recruiting-staffing-agencies",
+      linkLabel: "Staffing agency workflows",
     },
     {
+      icon: "headphones",
       title: "Customer support and BPO hiring",
       body: "Capture fluency notes, schedule flexibility and role expectations before interview coordination.",
-    },
-    {
-      title: "Technology recruitment",
-      body: "Gather role-relevant experience and availability so specialists can focus on deeper evaluation.",
+      href: "/in/ai-voice-bpo-recruitment",
+      linkLabel: "BPO recruitment page",
     },
   ],
-  valueH2: "Give Recruiters More Context Before the Next Conversation.",
-  valueBody:
-    "Focus on clearer information and accountable next steps — without unverified numerical claims.",
-  valueCards: [
-    {
-      title: "Less repetitive coordination",
-      body: "Structure recurring qualification questions so recruiters spend less time repeating the same checks.",
-    },
-    {
-      title: "More consistent candidate information",
-      body: "Capture relevant details in a reviewable format for the hiring team.",
-    },
-    {
-      title: "Clearer next steps",
-      body: "Help recruiters decide which conversations require human attention.",
-    },
-  ],
-  faqH2: "Frequently Asked Questions About AI Candidate Qualification",
+  trustStatement:
+    "“I have two years in customer support, prefer Bengaluru, and can join in about 15 days.”",
+  trustSuggestion:
+    "Suggested next step: mark location preference and joining timeline for recruiter review before interview coordination.",
+  trustDecision:
+    "Recruiter reviews the qualification responses and decides whether to clarify, advance or pause the candidate.",
   faqs: [
     {
       question: "What is AI candidate qualification?",
@@ -172,16 +130,14 @@ export const CANDIDATE_QUALIFICATION: SolutionLandingConfig = {
         "Huntlo organises qualification responses for recruiter review and handoff within the workflow. Specific ATS integrations or automatic synchronisation should be confirmed against the live product.",
     },
   ],
-  finalCtaH2: "Know Your Candidates Before the Next Hiring Step.",
   finalCtaBody:
     "See how Huntlo connects AI voice conversations with candidate qualification workflows.",
   related: [
     { label: "AI Hiring Agents", href: "/solutions/ai-hiring-agents" },
-    { label: "AI Sourcing", href: "/platform/ai-sourcing" },
+    { label: "AI Sourcing", href: CANDIDATE_SOURCING_PATH },
     { label: "Huntlo Voice", href: "/platform/voice" },
   ],
   aboutName: "Huntlo AI Candidate Qualification",
-  productVariant: "candidate-qualification",
 };
 
 export function candidateQualificationMetadata() {

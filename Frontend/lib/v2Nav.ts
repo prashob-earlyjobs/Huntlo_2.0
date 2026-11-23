@@ -83,10 +83,10 @@ export const V2_SOLUTIONS_MEGA: readonly V2SolutionsMegaColumn[] = [
     href: "/solutions/ai-hiring-agents",
     tone: "hiring",
     items: [
-      { label: "Candidate Sourcing", href: "/platform/ai-sourcing" },
-      { label: "AI Screening", href: "/agents/ai-screening-agent" },
+      { label: "Candidate Sourcing", href: "/solutions/candidate-sourcing" },
+      { label: "AI Screening", href: "/solutions/ai-screening" },
       { label: "Candidate Qualification", href: "/solutions/candidate-qualification" },
-      { label: "Interview Coordination", href: "/agents/interview-scheduling-agent" },
+      { label: "Interview Coordination", href: "/solutions/interview-coordination" },
     ],
   },
   {
@@ -95,9 +95,9 @@ export const V2_SOLUTIONS_MEGA: readonly V2SolutionsMegaColumn[] = [
     href: "/solutions/ai-onboarding-agents",
     tone: "onboarding",
     items: [
-      { label: "Joining Confirmation", href: "/agents/joining-confirmation" },
-      { label: "Pre-Joining Follow-ups", href: "/agents/pre-joining-engagement" },
-      { label: "Day 1 Readiness", href: "/agents/onboarding-document-readiness" },
+      { label: "Joining Confirmation", href: "/solutions/joining-confirmation" },
+      { label: "Pre-Joining Follow-ups", href: "/solutions/pre-joining-follow-ups" },
+      { label: "Day 1 Readiness", href: "/solutions/day-1-readiness" },
       { label: "HR Coordination", href: "/solutions/hr-coordination" },
     ],
   },
@@ -107,8 +107,8 @@ export const V2_SOLUTIONS_MEGA: readonly V2SolutionsMegaColumn[] = [
     href: "/solutions/ai-retention-agents",
     tone: "retention",
     items: [
-      { label: "Employee Check-ins", href: "/agents/new-hire-check-in-surveys" },
-      { label: "Workforce Feedback", href: "/agents/employee-pulse-surveys" },
+      { label: "Employee Check-ins", href: "/solutions/employee-check-ins" },
+      { label: "Workforce Feedback", href: "/solutions/workforce-feedback" },
       { label: "Concern Identification", href: "/solutions/concern-identification" },
       { label: "HR Follow-ups", href: "/solutions/hr-follow-ups" },
     ],
@@ -116,11 +116,13 @@ export const V2_SOLUTIONS_MEGA: readonly V2SolutionsMegaColumn[] = [
 ];
 
 export const V2_INDUSTRY_LINKS: V2NavItem[] = [
+  { label: "Logistics", href: "/industries/logistics-warehousing" },
+  { label: "Quick Commerce", href: "/industries/ecommerce-quick-commerce" },
+  { label: "Retail & QSR", href: "/industries/retail-qsr" },
+  { label: "BPO & Support", href: "/industries/bpo-customer-support" },
+  { label: "Manufacturing", href: "/industries/manufacturing" },
+  { label: "Staffing Agencies", href: "/industries/staffing-recruitment" },
   { label: "Recruitment agencies", href: "/ai-recruiting-staffing-agencies" },
-  { label: "BPO recruitment", href: "/in/ai-voice-bpo-recruitment" },
-  { label: "Logistics & warehouse", href: "/in/ai-voice-logistics-warehouse-hiring" },
-  { label: "Retail frontline", href: "/in/ai-voice-retail-frontline-hiring" },
-  { label: "Manufacturing", href: "/us/ai-recruiting-automation-manufacturing" },
   { label: "Healthcare staffing", href: "/us/ai-recruiting-automation-healthcare-staffing" },
 ];
 

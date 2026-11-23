@@ -539,7 +539,7 @@ const INDUSTRY_CARDS = [
     icon: Headphones,
     example: "Applicant confirms English fluency and weekend availability.",
     captured: ["Fluency note", "Weekend: Yes", "Owner: Recruitment lead"],
-    href: "/in/ai-voice-bpo-recruitment",
+    href: "/industries/bpo-customer-support",
   },
   {
     title: "Logistics",
@@ -547,7 +547,7 @@ const INDUSTRY_CARDS = [
     icon: Truck,
     example: "Candidate has a two-wheeler and can start Monday.",
     captured: ["Vehicle: Ready", "Joining: Monday", "Owner: Ops recruiter"],
-    href: "/in/ai-voice-logistics-warehouse-hiring",
+    href: "/industries/logistics-warehousing",
   },
   {
     title: "Manufacturing",
@@ -555,7 +555,7 @@ const INDUSTRY_CARDS = [
     icon: Factory,
     example: "Operator prefers rotating shifts and has safety training notes.",
     captured: ["Shift: Rotating", "Safety note", "Owner: Plant HR"],
-    href: "/us/ai-recruiting-automation-manufacturing",
+    href: "/industries/manufacturing",
   },
   {
     title: "Retail",
@@ -563,7 +563,7 @@ const INDUSTRY_CARDS = [
     icon: ShoppingBag,
     example: "Associate can cover evenings at the south store location.",
     captured: ["Evenings: Yes", "Site: South", "Owner: Store HR"],
-    href: "/in/ai-voice-retail-frontline-hiring",
+    href: "/industries/retail-qsr",
   },
   {
     title: "GCC / enterprise",
@@ -735,7 +735,7 @@ export function PlatformModuleHero({ config }: ConfigProps) {
                     {item.name}
                   </span>
                 ) : (
-                  <a href={item.href} className="hover:text-foreground">
+                  <a href={item.href} className="hover:text-primary">
                     {item.name}
                   </a>
                 )}
@@ -745,8 +745,8 @@ export function PlatformModuleHero({ config }: ConfigProps) {
         </ol>
       </nav>
 
-      <div className="grid items-start gap-10 lg:grid-cols-[1fr_1.15fr] lg:gap-12">
-        <div className="animate-rise">
+      <div className="grid min-w-0 items-start gap-10 lg:grid-cols-[1fr_1.15fr] lg:gap-12">
+        <div className="animate-rise min-w-0">
           <Eyebrow>{config.eyebrow}</Eyebrow>
           <h1
             id="module-h1"
@@ -762,16 +762,16 @@ export function PlatformModuleHero({ config }: ConfigProps) {
               href={V2_BOOK_DEMO_PATH}
               target="_blank"
               rel="noopener noreferrer"
-              className="group inline-flex min-h-11 w-fit items-center gap-3 rounded-full bg-foreground py-1.5 pl-6 pr-1.5 text-sm font-medium text-background transition-colors hover:bg-foreground/90"
+              className="group inline-flex min-h-11 w-fit items-center gap-3 rounded-full bg-primary py-1.5 pl-6 pr-1.5 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary-deep"
             >
               Book a Demo
-              <span className="grid h-9 w-9 place-items-center rounded-full bg-background text-foreground transition-transform group-hover:translate-x-0.5">
+              <span className="grid h-9 w-9 place-items-center rounded-full bg-primary-foreground text-primary transition-transform group-hover:translate-x-0.5">
                 <ArrowRight className="h-4 w-4" />
               </span>
             </a>
             <a
               href="#how-it-works"
-              className="inline-flex min-h-11 w-fit items-center rounded-full border border-border px-6 py-3 text-sm font-medium text-foreground transition-colors hover:bg-secondary"
+              className="inline-flex min-h-11 w-fit items-center rounded-full border border-border px-6 py-3 text-sm font-medium text-foreground transition-colors hover:bg-muted"
             >
               Explore Workflow
             </a>
@@ -789,7 +789,7 @@ export function PlatformModuleHero({ config }: ConfigProps) {
           </ul>
         </div>
 
-        <div className="animate-rise" style={{ animationDelay: "80ms" }}>
+        <div className="animate-rise min-w-0 w-full max-w-full" style={{ animationDelay: "80ms" }}>
           <ProductExperienceMockup variant={config.productVariant} />
         </div>
       </div>
@@ -922,7 +922,7 @@ export function PlatformModuleProduct({ config }: ConfigProps) {
         {config.productVariant === "voice" ? (
           <VoiceProductExperience />
         ) : (
-          <Reveal className="mt-14">
+          <Reveal className="mt-14 min-w-0 w-full max-w-full">
             <ProductExperienceMockup variant={config.productVariant} />
           </Reveal>
         )}

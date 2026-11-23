@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 
-import { LandingFooter } from "@/components/landing/LandingFooter";
-import { LandingNav } from "@/components/landing/LandingNav";
+import { Footer } from "@/components/huntlo/Footer";
+import { Navbar } from "@/components/huntlo/Navbar";
 
 type AgentsShellProps = {
   children: ReactNode;
@@ -9,12 +9,13 @@ type AgentsShellProps = {
   aiAskTopic?: string;
 };
 
+/** Shared chrome for /agents/* — same halo-home tokens as solutions/platform pages. */
 export function AgentsShell({ children, aiAskPrompt, aiAskTopic }: AgentsShellProps) {
   return (
-    <div className="landing-page min-h-screen bg-[#f8fafc] text-[#141b2b] selection:bg-[#0050cb] selection:text-[#c1cfff]">
-      <LandingNav />
+    <div id="top" className="halo-home">
+      <Navbar />
       <main>{children}</main>
-      <LandingFooter aiAskPrompt={aiAskPrompt} aiAskTopic={aiAskTopic} />
+      <Footer aiAskPrompt={aiAskPrompt} aiAskTopic={aiAskTopic} />
     </div>
   );
 }

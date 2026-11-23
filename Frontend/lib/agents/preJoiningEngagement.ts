@@ -2,10 +2,9 @@ import type { Metadata } from "next";
 
 import type { ScreeningWorkflowConfig } from "@/lib/agents/screeningWorkflowTypes";
 import { isIndexableCapability, type CapabilityStatus } from "@/lib/agents/types";
-import { AGENTS_HUB_PATH } from "@/lib/agents/pillarAgents";
 import { absoluteUrl, buildPageMetadata, OG_IMAGES } from "@/lib/siteMetadata";
 
-export const PRE_JOINING_ENGAGEMENT_PATH = "/agents/pre-joining-engagement";
+export const PRE_JOINING_ENGAGEMENT_PATH = "/solutions/pre-joining-follow-ups";
 
 /** Product must approve Live/Pilot/Planned before indexation. */
 export const PRE_JOINING_ENGAGEMENT_CAPABILITY_STATUS: CapabilityStatus = "planned";
@@ -49,11 +48,9 @@ export const PRE_JOINING_ENGAGEMENT: ScreeningWorkflowConfig = {
   seo: PRE_JOINING_ENGAGEMENT_SEO,
   breadcrumbs: [
     { name: "Home", href: "/" },
-    { name: "AI Agents", href: AGENTS_HUB_PATH },
-    {
-      name: "Pre-Joining Engagement",
-      href: PRE_JOINING_ENGAGEMENT_PATH,
-    },
+    { name: "Solutions", href: "/solutions/ai-onboarding-agents" },
+    { name: "AI Onboarding Agents", href: "/solutions/ai-onboarding-agents" },
+    { name: "Pre-Joining Follow-ups", href: PRE_JOINING_ENGAGEMENT_PATH },
   ],
   hero: {
     h1: "Pre-Joining Engagement That Moves Work Forward",
@@ -215,14 +212,14 @@ export const PRE_JOINING_ENGAGEMENT: ScreeningWorkflowConfig = {
     subhead: "Book a Huntlo workflow discussion.",
   },
   relatedLinks: [
-    { label: "AI Agents", href: AGENTS_HUB_PATH },
-    {
-      label: "AI Onboarding Agent",
-      href: "/agents/ai-onboarding-agent",
-    },
+    { label: "AI Onboarding Agents", href: "/solutions/ai-onboarding-agents" },
     {
       label: "Joining Confirmation",
-      href: "/agents/joining-confirmation",
+      href: "/solutions/joining-confirmation",
+    },
+    {
+      label: "Day 1 Readiness",
+      href: "/solutions/day-1-readiness",
     },
   ],
   sampleTranscript: [

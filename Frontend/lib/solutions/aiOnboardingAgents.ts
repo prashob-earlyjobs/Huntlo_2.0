@@ -1,3 +1,5 @@
+import { JOINING_CONFIRMATION_PATH } from "@/lib/agents/joiningConfirmation";
+import { PRE_JOINING_ENGAGEMENT_PATH } from "@/lib/agents/preJoiningEngagement";
 import type { PlatformModuleConfig } from "@/lib/platform/moduleTypes";
 import { absoluteUrl, buildPageMetadata, OG_IMAGES } from "@/lib/siteMetadata";
 import { V2_HOME_PATH } from "@/lib/v2Nav";
@@ -91,7 +93,7 @@ export const AI_ONBOARDING_AGENTS: PlatformModuleConfig = {
       icon: "clipboard",
       title: "HR operations",
       body: "Organise joining confirmation and blocker follow-ups so consequential questions stay with authorised reviewers.",
-      href: "/agents/joining-confirmation",
+      href: JOINING_CONFIRMATION_PATH,
       linkLabel: "Joining confirmation agent",
     },
   ],
@@ -126,8 +128,8 @@ export const AI_ONBOARDING_AGENTS: PlatformModuleConfig = {
   related: [
     { label: "HR Coordination", href: "/solutions/hr-coordination" },
     { label: "AI Onboarding Agent", href: "/agents/ai-onboarding-agent" },
-    { label: "Joining Confirmation", href: "/agents/joining-confirmation" },
-    { label: "Pre-joining Engagement", href: "/agents/pre-joining-engagement" },
+    { label: "Joining Confirmation", href: JOINING_CONFIRMATION_PATH },
+    { label: "Pre-joining Engagement", href: PRE_JOINING_ENGAGEMENT_PATH },
   ],
   aboutName: "Huntlo AI Onboarding Agents",
 };

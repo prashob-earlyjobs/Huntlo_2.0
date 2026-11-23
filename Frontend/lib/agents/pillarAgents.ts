@@ -18,7 +18,7 @@ export const PILLAR_AGENTS: readonly PillarAgent[] = [
   {
     id: "ai-screening-agent",
     name: "AI Screening Agent",
-    href: "/agents/ai-screening-agent",
+    href: "/solutions/ai-screening",
     description: "General candidate qualification with reviewable outcomes.",
     status: "planned",
   },

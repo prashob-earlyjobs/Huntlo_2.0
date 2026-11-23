@@ -32,7 +32,7 @@ export const metadata: Metadata = {
 export default function FormerEmployeeRehiringPlannedPage() {
   return (
     <AgentsShell>
-      <section className="border-b border-[#e8eef7] bg-white">
+      <section className="border-b border-border bg-background">
         <div className={`${agentsContentWidth} py-16 md:py-24`}>
           <AgentsBreadcrumb
             items={[
@@ -41,13 +41,13 @@ export default function FormerEmployeeRehiringPlannedPage() {
               { name: "Former Employee Rehiring", href: PATH },
             ]}
           />
-          <p className="mt-8 text-xs font-semibold uppercase tracking-[0.22em] text-[#0050cb]">
+          <p className="mt-8 text-xs font-semibold uppercase tracking-[0.22em] text-primary">
             Capability planned · Not indexed
           </p>
-          <h1 className="mt-5 max-w-3xl text-[2rem] font-bold leading-[1.12] tracking-tight text-[#141b2b] sm:text-[2.35rem] md:text-[2.9rem]">
+          <h1 className="mt-5 max-w-3xl text-[2rem] font-bold leading-[1.12] tracking-tight text-foreground sm:text-[2.35rem] md:text-[2.9rem]">
             Former Employee Rehiring
           </h1>
-          <p className="mt-6 max-w-2xl text-base leading-relaxed text-[#5b6478] md:text-lg">
+          <p className="mt-6 max-w-2xl text-base leading-relaxed text-muted-foreground md:text-lg">
             This workflow page is reserved for product-approved content. Until then, explore
             AI Rehiring Agent or Candidate Experience Surveys.
           </p>
@@ -63,7 +63,7 @@ export default function FormerEmployeeRehiringPlannedPage() {
             </Link>
             <BookDemoLink className={agentsSecondaryCtaClass}>Book a Demo</BookDemoLink>
           </div>
-          <p className="mt-8 text-sm text-[#5b6478]">
+          <p className="mt-8 text-sm text-muted-foreground">
             Canonical path reserved: {absoluteUrl(PATH)}
           </p>
         </div>

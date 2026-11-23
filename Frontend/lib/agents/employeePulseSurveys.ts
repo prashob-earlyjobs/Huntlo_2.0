@@ -2,10 +2,9 @@ import type { Metadata } from "next";
 
 import type { ScreeningWorkflowConfig } from "@/lib/agents/screeningWorkflowTypes";
 import { isIndexableCapability, type CapabilityStatus } from "@/lib/agents/types";
-import { AGENTS_HUB_PATH } from "@/lib/agents/pillarAgents";
 import { absoluteUrl, buildPageMetadata, OG_IMAGES } from "@/lib/siteMetadata";
 
-export const EMPLOYEE_PULSE_SURVEYS_PATH = "/agents/employee-pulse-surveys";
+export const EMPLOYEE_PULSE_SURVEYS_PATH = "/solutions/workforce-feedback";
 
 /** Product must approve Live/Pilot/Planned before indexation. */
 export const EMPLOYEE_PULSE_SURVEYS_CAPABILITY_STATUS: CapabilityStatus =
@@ -50,8 +49,9 @@ export const EMPLOYEE_PULSE_SURVEYS: ScreeningWorkflowConfig = {
   seo: EMPLOYEE_PULSE_SURVEYS_SEO,
   breadcrumbs: [
     { name: "Home", href: "/" },
-    { name: "AI Agents", href: AGENTS_HUB_PATH },
-    { name: "Employee Pulse Surveys", href: EMPLOYEE_PULSE_SURVEYS_PATH },
+    { name: "Solutions", href: "/solutions/ai-retention-agents" },
+    { name: "AI Retention Agents", href: "/solutions/ai-retention-agents" },
+    { name: "Workforce Feedback", href: EMPLOYEE_PULSE_SURVEYS_PATH },
   ],
   hero: {
     h1: "Employee Pulse Surveys That Moves Work Forward",
@@ -213,14 +213,14 @@ export const EMPLOYEE_PULSE_SURVEYS: ScreeningWorkflowConfig = {
     subhead: "Book a Huntlo workflow discussion.",
   },
   relatedLinks: [
-    { label: "AI Agents", href: AGENTS_HUB_PATH },
+    { label: "AI Retention Agents", href: "/solutions/ai-retention-agents" },
     {
-      label: "AI Survey Agent",
-      href: "/agents/ai-survey-agent",
+      label: "Employee Check-ins",
+      href: "/solutions/employee-check-ins",
     },
     {
-      label: "New-Hire Check-In Surveys",
-      href: "/agents/new-hire-check-in-surveys",
+      label: "HR Follow-ups",
+      href: "/solutions/hr-follow-ups",
     },
   ],
   sampleTranscript: [

@@ -1,6 +1,7 @@
-import type { SolutionLandingConfig } from "@/lib/solutions/solutionLandingTypes";
+import { JOINING_CONFIRMATION_PATH } from "@/lib/agents/joiningConfirmation";
+import type { PlatformModuleConfig } from "@/lib/platform/moduleTypes";
 import { absoluteUrl, buildPageMetadata, OG_IMAGES } from "@/lib/siteMetadata";
-import { V2_BOOK_DEMO_PATH, V2_HOME_PATH } from "@/lib/v2Nav";
+import { V2_HOME_PATH } from "@/lib/v2Nav";
 
 export const HR_COORDINATION_PATH = "/solutions/hr-coordination";
 
@@ -10,9 +11,8 @@ export const HR_COORDINATION_SEO = {
     "Coordinate joining tasks, employee communication and HR follow-ups through AI voice conversations and structured onboarding workflows with Huntlo.",
 } as const;
 
-export const HR_COORDINATION: SolutionLandingConfig = {
+export const HR_COORDINATION: PlatformModuleConfig = {
   path: HR_COORDINATION_PATH,
-  tone: "onboarding",
   seo: HR_COORDINATION_SEO,
   breadcrumbs: [
     { name: "Home", href: V2_HOME_PATH },
@@ -20,129 +20,84 @@ export const HR_COORDINATION: SolutionLandingConfig = {
     { name: "AI Onboarding Agents", href: "/solutions/ai-onboarding-agents" },
     { name: "HR Coordination", href: HR_COORDINATION_PATH },
   ],
-  eyebrow: "AI HR Coordination",
+  eyebrow: "Huntlo · AI HR Coordination",
   h1: "Keep HR Coordination Moving Through AI-Powered Workflows",
   heroBody:
     "Every joining task connected. Every next step clear. Huntlo brings voice-powered employee communication and structured HR workflows together, helping teams coordinate joining requirements, track responses and identify tasks that need human attention.",
-  definition:
-    "AI HR coordination applies conversational automation and structured workflows to recurring HR communication and task-management processes, while keeping HR teams involved in decisions and exceptions.",
-  primaryCta: { label: "Book a Demo", href: V2_BOOK_DEMO_PATH, external: true },
-  secondaryCta: {
-    label: "Explore AI Onboarding Agents",
-    href: "/solutions/ai-onboarding-agents",
-  },
-  problemH2: "Onboarding Breaks When Coordination Lives Across Too Many Conversations.",
-  problemBody:
-    "Between offer acceptance and the first day of work, HR teams coordinate documents, joining dates, employee questions, reporting details and internal handoffs. When these interactions happen across disconnected channels, teams can lose visibility into what is complete, what is pending and who needs to act.",
-  problemCards: [
-    {
-      title: "Scattered employee updates",
-      body: "Joining information is spread across multiple conversations.",
-    },
-    {
-      title: "Unclear task ownership",
-      body: "Pending actions are difficult to assign and track.",
-    },
-    {
-      title: "Last-minute joining friction",
-      body: "Unresolved questions surface close to the joining date.",
-    },
+  heroPills: [
+    { icon: "clipboard", label: "Joining workflow" },
+    { icon: "users", label: "Employee communication" },
+    { icon: "userCheck", label: "HR handoff" },
   ],
-  solutionH2: "Connect Employee Conversations with the HR Work That Follows.",
-  solutionBody:
-    "Huntlo's proposed coordination experience brings employee communication, workflow status and HR actions into one understandable process.",
-  workflowEyebrow: "Illustrative onboarding coordination workflow",
-  workflowSteps: [
+  problemBody:
+    "Between offer acceptance and the first day of work, HR teams coordinate documents, joining dates, employee questions, reporting details and internal handoffs. When these interactions happen across disconnected channels, teams can lose visibility into what is complete, what is pending and who needs to act — scattered employee updates, unclear task ownership and last-minute joining friction.",
+  answerH2: "What is AI HR Coordination?",
+  answerBody:
+    "AI HR coordination applies conversational automation and structured workflows to recurring HR communication and task-management processes, while keeping HR teams involved in decisions and exceptions.",
+  answerNote:
+    "Huntlo's proposed coordination experience brings employee communication, workflow status and HR actions into one understandable process. HR teams retain responsibility for employee support and resolution.",
+  howStages: [
     {
       title: "Start the joining workflow",
-      body: "Identify the employee and applicable onboarding requirements.",
+      source: "Employee and applicable onboarding requirements",
+      captured: "Joining path opened with required steps",
+      owner: "HR owns joining ownership",
     },
     {
       title: "Communicate next steps",
-      body: "Use configured AI voice conversations and messaging workflows to share relevant information.",
+      source: "Configured AI voice and messaging workflows",
+      captured: "Joining instructions and confirmations shared",
+      owner: "HR confirms instruction accuracy",
     },
     {
       title: "Capture responses",
-      body: "Record joining confirmations, questions and outstanding requirements.",
+      source: "Joining confirmations, questions and outstanding requirements",
+      captured: "Employee responses organised for review",
+      owner: "System surfaces; HR reviews context",
     },
     {
       title: "Track pending actions",
-      body: "Organise tasks and their assigned owners.",
+      source: "Outstanding joining requirements",
+      captured: "Tasks with assigned owners",
+      owner: "HR assigns and monitors ownership",
     },
     {
       title: "Coordinate HR resolution",
-      body: "Route unresolved items to the appropriate team member.",
+      source: "Unresolved items needing human attention",
+      captured: "Handoff to the appropriate team member",
+      owner: "HR owns consequential follow-up",
     },
   ],
-  capabilitiesH2: "Make Onboarding Coordination Easier to Follow.",
-  capabilities: [
+  productVariant: "onboarding",
+  whoCards: [
     {
-      title: "Joining Status Visibility",
-      body: "Keep confirmation and readiness information organised.",
-    },
-    {
-      title: "Employee Communication",
-      body: "Support consistent conversations about onboarding requirements.",
-    },
-    {
-      title: "Task Coordination",
-      body: "Connect pending requirements with the people responsible.",
-    },
-    {
-      title: "Question Capture",
-      body: "Organise employee questions that need clarification.",
-    },
-    {
-      title: "HR Handoffs",
-      body: "Make unresolved actions visible for human follow-up.",
-    },
-    {
-      title: "Workflow History",
-      body: "Provide context about prior interactions and next steps.",
-    },
-  ],
-  productH2: "A Clearer View of Every Joining Journey.",
-  productBody:
-    "Follow an illustrative employee joining timeline — from offer accepted through Day 1 readiness — with outstanding requirements and HR ownership clearly marked.",
-  productNote:
-    "Illustrative workflow — fictional employee. This visual is a design specification, not proof that every listed function is already available.",
-  useCasesH2: "Built for HR Teams Managing Complex Joining Journeys.",
-  useCases: [
-    {
+      icon: "building",
       title: "Multi-location hiring",
       body: "Keep joining instructions and site-specific next steps organised across locations.",
+      href: "/solutions/ai-onboarding-agents",
+      linkLabel: "AI Onboarding Agents",
     },
     {
+      icon: "users",
       title: "High-volume onboarding",
       body: "Coordinate recurring confirmations and outstanding requirements without losing ownership.",
+      href: JOINING_CONFIRMATION_PATH,
+      linkLabel: "Joining confirmation",
     },
     {
+      icon: "truck",
       title: "Staffing and deployment coordination",
       body: "Connect employee responses with the teams responsible for deployment readiness.",
-    },
-    {
-      title: "Enterprise HR operations",
-      body: "Give HR owners clearer context when joining questions need human resolution.",
+      href: "/ai-recruiting-staffing-agencies",
+      linkLabel: "Staffing agency workflows",
     },
   ],
-  valueH2: "Fewer Disconnected Updates. More Coordinated Onboarding.",
-  valueBody:
-    "Focus on clear ownership, organised employee communication and better visibility into outstanding actions.",
-  valueCards: [
-    {
-      title: "Clearer ownership",
-      body: "Make pending joining actions visible to the people responsible for resolving them.",
-    },
-    {
-      title: "Organised employee communication",
-      body: "Keep joining conversations connected to the requirements that follow.",
-    },
-    {
-      title: "Better visibility",
-      body: "See what is complete, what is pending and what needs HR attention before Day 1.",
-    },
-  ],
-  faqH2: "Frequently Asked Questions About AI HR Coordination",
+  trustStatement:
+    "“I confirmed Monday as my start date, but I still need clarity on where to report and which bank letter is required.”",
+  trustSuggestion:
+    "Suggested next step: mark document requirements pending and route reporting-instruction clarification to the joining desk.",
+  trustDecision:
+    "HR confirms outstanding requirements, assigns an owner and follows up before Day 1.",
   faqs: [
     {
       question: "What is AI HR coordination?",
@@ -175,7 +130,6 @@ export const HR_COORDINATION: SolutionLandingConfig = {
         "No. It supports repetitive communication and workflow visibility while HR teams retain responsibility for employee support and resolution.",
     },
   ],
-  finalCtaH2: "Bring Clarity to Every Joining Journey.",
   finalCtaBody:
     "Explore how Huntlo connects employee conversations, onboarding requirements and HR coordination.",
   related: [
@@ -184,7 +138,6 @@ export const HR_COORDINATION: SolutionLandingConfig = {
     { label: "AI Engagement", href: "/platform/ai-engagement" },
   ],
   aboutName: "Huntlo AI HR Coordination",
-  productVariant: "hr-coordination",
 };
 
 export function hrCoordinationMetadata() {

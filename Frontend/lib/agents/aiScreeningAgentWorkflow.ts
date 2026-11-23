@@ -1,10 +1,9 @@
 import type { Metadata } from "next";
 
 import { isIndexableCapability, type CapabilityStatus } from "@/lib/agents/types";
-import { AGENTS_HUB_PATH } from "@/lib/agents/pillarAgents";
 import { absoluteUrl, buildPageMetadata, OG_IMAGES } from "@/lib/siteMetadata";
 
-export const AI_SCREENING_AGENT_WORKFLOW_PATH = "/agents/ai-screening-agent";
+export const AI_SCREENING_AGENT_WORKFLOW_PATH = "/solutions/ai-screening";
 
 /** Product must approve Live/Pilot/Planned before indexation. */
 export const AI_SCREENING_AGENT_WORKFLOW_CAPABILITY_STATUS: CapabilityStatus =
@@ -41,8 +40,9 @@ export function aiScreeningAgentWorkflowMetadata(): Metadata {
 
 export const AI_SCREENING_AGENT_WORKFLOW_BREADCRUMBS = [
   { name: "Home", href: "/" },
-  { name: "AI Agents", href: AGENTS_HUB_PATH },
-  { name: "AI Screening Agent", href: AI_SCREENING_AGENT_WORKFLOW_PATH },
+  { name: "Solutions", href: "/solutions/ai-hiring-agents" },
+  { name: "AI Hiring Agents", href: "/solutions/ai-hiring-agents" },
+  { name: "AI Screening", href: AI_SCREENING_AGENT_WORKFLOW_PATH },
 ] as const;
 
 export const HERO = {
@@ -200,14 +200,14 @@ export const FINAL_CTA = {
 } as const;
 
 export const RELATED_LINKS = [
-  { label: "AI Agents", href: AGENTS_HUB_PATH },
+  { label: "AI Hiring Agents", href: "/solutions/ai-hiring-agents" },
   {
-    label: "High-Volume Candidate Screening",
-    href: "/agents/high-volume-candidate-screening",
+    label: "Candidate Qualification",
+    href: "/solutions/candidate-qualification",
   },
   {
-    label: "BPO Voice Screening",
-    href: "/agents/bpo-voice-screening",
+    label: "Interview Coordination",
+    href: "/solutions/interview-coordination",
   },
 ] as const;
 
