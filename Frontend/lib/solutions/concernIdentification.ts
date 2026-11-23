@@ -141,7 +141,7 @@ export const CONCERN_IDENTIFICATION: PlatformModuleConfig = {
   related: [
     { label: "AI Retention Agents", href: "/solutions/ai-retention-agents" },
     { label: "HR Follow-Up Automation", href: "/solutions/hr-follow-ups" },
-    { label: "Huntlo Voice", href: "/platform/voice" },
+    { label: "Huntlo VoiceAI", href: "/platform/voice-ai" },
     { label: "Conversation Intelligence", href: "/platform/conversation-intelligence" },
   ],
   aboutName: "Huntlo AI Employee Concern Identification",

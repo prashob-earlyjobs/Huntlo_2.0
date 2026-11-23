@@ -112,7 +112,7 @@ export const PLATFORM_CONVERSATION_INTELLIGENCE: PlatformModuleConfig = {
   finalCtaBody:
     "Share your conversation review, screening summary or follow-up workflow and discuss verified product capabilities with the Huntlo team.",
   related: [
-    { label: "Huntlo Voice", href: "/platform/voice" },
+    { label: "Huntlo VoiceAI", href: "/platform/voice-ai" },
     { label: "AI Engagement", href: "/platform/ai-engagement" },
     { label: "AI Voice Recruiter", href: "/ai-voice-recruiter" },
   ],

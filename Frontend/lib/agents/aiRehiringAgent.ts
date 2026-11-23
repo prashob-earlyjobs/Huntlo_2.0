@@ -308,7 +308,7 @@ export const AI_REHIRING_AGENT: ScreeningWorkflowConfig = {
   ],
   demoTitle: "Huntlo AI Rehiring Agent",
   demoSubtitle: "Previous vs current talent profile — silent simulation",
-  demoFooter: "Huntlo Voice · Alumni talent re-engagement · Illustrative outcome",
+  demoFooter: "Huntlo VoiceAI · Alumni talent re-engagement · Illustrative outcome",
   aiAskTopic: "Huntlo AI Rehiring Agent voice workflow",
   aiAskPrompt: `What is the Huntlo AI Rehiring Agent on ${AI_REHIRING_AGENT_PATH} (https://www.huntlo.ai${AI_REHIRING_AGENT_PATH})? How does an alumni talent re-engagement voice workflow collect answers and route a human-reviewed next action?`,
 };

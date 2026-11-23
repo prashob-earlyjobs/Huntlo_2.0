@@ -300,7 +300,7 @@ export const EXIT_INTERVIEW_AGENT: ScreeningWorkflowConfig = {
   ],
   demoTitle: "Huntlo Exit Interview Agent",
   demoSubtitle: "Protected feedback themes — silent simulation",
-  demoFooter: "Huntlo Voice · Voluntary exit feedback · Illustrative outcome",
+  demoFooter: "Huntlo VoiceAI · Voluntary exit feedback · Illustrative outcome",
   aiAskTopic: "Huntlo Exit Interview Agent voice workflow",
   aiAskPrompt: `What is the Huntlo Exit Interview Agent on ${EXIT_INTERVIEW_AGENT_PATH} (https://www.huntlo.ai${EXIT_INTERVIEW_AGENT_PATH})? How does a voluntary exit feedback voice workflow collect answers and route a human-reviewed next action?`,
 };

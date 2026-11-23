@@ -292,7 +292,7 @@ export const BPO_CUSTOMER_SUPPORT: IndustryLandingConfig = {
   },
   contextualCta: {
     h2: "Organise high-volume support candidate conversations.",
-    body: "Explore AI candidate screening, Huntlo Voice and conversation intelligence for BPO recruiting teams.",
+    body: "Explore AI candidate screening, Huntlo VoiceAI and conversation intelligence for BPO recruiting teams.",
     primaryCta: "Explore AI Candidate Screening",
     secondaryCta: "Explore Candidate Qualification",
     secondaryCtaHref: "/solutions/candidate-qualification",
@@ -304,7 +304,7 @@ export const BPO_CUSTOMER_SUPPORT: IndustryLandingConfig = {
   },
   related: [
     { label: "Candidate Qualification", href: "/solutions/candidate-qualification" },
-    { label: "Huntlo Voice", href: "/platform/voice" },
+    { label: "Huntlo VoiceAI", href: "/platform/voice-ai" },
     { label: "Conversation Intelligence", href: "/platform/conversation-intelligence" },
     { label: "AI Screening", href: "/solutions/ai-screening" },
     { label: "Retail & QSR", href: "/industries/retail-qsr" },

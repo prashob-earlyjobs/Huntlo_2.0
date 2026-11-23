@@ -136,7 +136,7 @@ export const HR_FOLLOW_UPS: PlatformModuleConfig = {
   related: [
     { label: "AI Retention Agents", href: "/solutions/ai-retention-agents" },
     { label: "Concern Identification", href: "/solutions/concern-identification" },
-    { label: "Huntlo Voice", href: "/platform/voice" },
+    { label: "Huntlo VoiceAI", href: "/platform/voice-ai" },
     { label: "Conversation Intelligence", href: "/platform/conversation-intelligence" },
   ],
   aboutName: "Huntlo AI HR Follow-Ups",

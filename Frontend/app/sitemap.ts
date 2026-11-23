@@ -29,7 +29,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     { url: `${SITE_URL}/candidate-pool`, lastModified: new Date(), changeFrequency: "monthly", priority: 0.88 },
     { url: `${SITE_URL}/integrations`, lastModified: new Date(), changeFrequency: "monthly", priority: 0.88 },
     { url: `${SITE_URL}/platform`, lastModified: new Date(), changeFrequency: "monthly", priority: 0.9 },
-    { url: `${SITE_URL}/platform/voice`, lastModified: new Date(), changeFrequency: "monthly", priority: 0.9 },
+    { url: `${SITE_URL}/platform/voice-ai`, lastModified: new Date(), changeFrequency: "monthly", priority: 0.9 },
     {
       url: `${SITE_URL}/platform/ai-sourcing`,
       lastModified: new Date(),

@@ -313,7 +313,7 @@ export const LOGISTICS_WAREHOUSING: IndustryLandingConfig = {
     { label: "HR Coordination", href: "/solutions/hr-coordination" },
     { label: "Employee Check-ins", href: "/solutions/employee-check-ins" },
     { label: "AI Hiring Agents", href: "/solutions/ai-hiring-agents" },
-    { label: "Huntlo Voice", href: "/platform/voice" },
+    { label: "Huntlo VoiceAI", href: "/platform/voice-ai" },
     { label: "E-Commerce & Quick Commerce", href: "/industries/ecommerce-quick-commerce" },
   ],
   aiAskPrompt: `What is Huntlo AI voice hiring for logistics and warehousing on ${LOGISTICS_WAREHOUSING_PATH} (https://www.huntlo.ai${LOGISTICS_WAREHOUSING_PATH})? How do voice-powered workflows support warehouse screening, joining coordination and HR follow-up?`,

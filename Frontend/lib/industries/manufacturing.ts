@@ -313,7 +313,7 @@ export const MANUFACTURING: IndustryLandingConfig = {
     { label: "Concern Identification", href: "/solutions/concern-identification" },
     { label: "AI Retention Agents", href: "/solutions/ai-retention-agents" },
     { label: "AI Onboarding Agents", href: "/solutions/ai-onboarding-agents" },
-    { label: "Huntlo Voice", href: "/platform/voice" },
+    { label: "Huntlo VoiceAI", href: "/platform/voice-ai" },
     { label: "Logistics & Warehousing", href: "/industries/logistics-warehousing" },
   ],
   aiAskPrompt: `What is Huntlo AI voice hiring for manufacturing on ${MANUFACTURING_PATH} (https://www.huntlo.ai${MANUFACTURING_PATH})? How do voice-powered workflows support worker screening, plant joining coordination and HR follow-up?`,

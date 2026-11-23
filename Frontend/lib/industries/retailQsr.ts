@@ -310,7 +310,7 @@ export const RETAIL_QSR: IndustryLandingConfig = {
     { label: "AI Hiring Agents", href: "/solutions/ai-hiring-agents" },
     { label: "Interview Coordination", href: "/solutions/interview-coordination" },
     { label: "Employee Check-ins", href: "/solutions/employee-check-ins" },
-    { label: "Huntlo Voice", href: "/platform/voice" },
+    { label: "Huntlo VoiceAI", href: "/platform/voice-ai" },
     { label: "E-Commerce & Quick Commerce", href: "/industries/ecommerce-quick-commerce" },
     { label: "BPO & Support", href: "/industries/bpo-customer-support" },
   ],

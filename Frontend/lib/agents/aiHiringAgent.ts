@@ -294,7 +294,7 @@ export const AI_HIRING_AGENT: ScreeningWorkflowConfig = {
   ],
   demoTitle: "Huntlo Hiring Agent",
   demoSubtitle: "Interview journey + action queue — silent simulation",
-  demoFooter: "Huntlo Voice · Hiring coordination · Illustrative outcome",
+  demoFooter: "Huntlo VoiceAI · Hiring coordination · Illustrative outcome",
   aiAskTopic: "Huntlo AI Hiring Agent voice workflow",
   aiAskPrompt: `What is the Huntlo AI Hiring Agent on ${AI_HIRING_AGENT_PATH} (https://www.huntlo.ai${AI_HIRING_AGENT_PATH})? How does a recruitment coordination voice workflow collect answers and route a human-reviewed next action?`,
 };

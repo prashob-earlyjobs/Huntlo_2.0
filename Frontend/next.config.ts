@@ -15,6 +15,11 @@ const nextConfig: NextConfig = {
   },
   async redirects() {
     return [
+      {
+        source: "/platform/voice",
+        destination: "/platform/voice-ai",
+        permanent: true,
+      },
       { source: "/new", destination: "/", permanent: true },
       {
         source: "/huntlo-discovery-call",

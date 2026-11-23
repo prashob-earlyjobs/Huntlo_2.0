@@ -316,7 +316,7 @@ export const SEASONAL_WORKFORCE_REHIRING: ScreeningWorkflowConfig = {
   demoTitle: "Huntlo Seasonal Workforce Rehiring",
   demoSubtitle: "Previous vs current talent profile — silent simulation",
   demoFooter:
-    "Huntlo Voice · Seasonal return campaigns · Illustrative outcome",
+    "Huntlo VoiceAI · Seasonal return campaigns · Illustrative outcome",
   aiAskTopic: "Huntlo Seasonal Workforce Rehiring voice workflow",
   aiAskPrompt: `What is Huntlo Seasonal Workforce Rehiring on ${SEASONAL_WORKFORCE_REHIRING_PATH} (https://www.huntlo.ai${SEASONAL_WORKFORCE_REHIRING_PATH})? How does a seasonal return campaign voice workflow collect answers and route a human-reviewed next action?`,
 };

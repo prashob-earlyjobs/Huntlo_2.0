@@ -304,7 +304,7 @@ export const JOINING_CONFIRMATION: ScreeningWorkflowConfig = {
   ],
   demoTitle: "Huntlo Joining Confirmation",
   demoSubtitle: "Offer-to-day-one timeline — silent simulation",
-  demoFooter: "Huntlo Voice · Joining-intent checks · Illustrative outcome",
+  demoFooter: "Huntlo VoiceAI · Joining-intent checks · Illustrative outcome",
   aiAskTopic: "Huntlo Joining Confirmation voice workflow",
   aiAskPrompt: `What is Huntlo Joining Confirmation on ${JOINING_CONFIRMATION_PATH} (https://www.huntlo.ai${JOINING_CONFIRMATION_PATH})? How does a joining-intent checks voice workflow collect answers and route a human-reviewed next action?`,
 };

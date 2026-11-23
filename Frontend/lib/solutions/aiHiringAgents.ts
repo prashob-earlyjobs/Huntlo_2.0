@@ -129,7 +129,7 @@ export const AI_HIRING_AGENTS: PlatformModuleConfig = {
     { label: "Candidate Qualification", href: "/solutions/candidate-qualification" },
     { label: "AI Hiring Agent", href: "/agents/ai-hiring-agent" },
     { label: "AI Screening Agent", href: AI_SCREENING_AGENT_WORKFLOW_PATH },
-    { label: "Huntlo Voice", href: "/platform/voice" },
+    { label: "Huntlo VoiceAI", href: "/platform/voice-ai" },
   ],
   aboutName: "Huntlo AI Hiring Agents",
 };

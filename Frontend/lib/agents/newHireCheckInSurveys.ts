@@ -300,7 +300,7 @@ export const NEW_HIRE_CHECK_IN_SURVEYS: ScreeningWorkflowConfig = {
   ],
   demoTitle: "Huntlo New-Hire Check-In Surveys",
   demoSubtitle: "Protected feedback themes — silent simulation",
-  demoFooter: "Huntlo Voice · 30/60/90-day check-ins · Illustrative outcome",
+  demoFooter: "Huntlo VoiceAI · 30/60/90-day check-ins · Illustrative outcome",
   aiAskTopic: "Huntlo New-Hire Check-In Surveys voice workflow",
   aiAskPrompt: `What are Huntlo New-Hire Check-In Surveys on ${NEW_HIRE_CHECK_IN_SURVEYS_PATH} (https://www.huntlo.ai${NEW_HIRE_CHECK_IN_SURVEYS_PATH})? How does a 30/60/90-day check-in voice workflow collect answers and route a human-reviewed next action?`,
 };

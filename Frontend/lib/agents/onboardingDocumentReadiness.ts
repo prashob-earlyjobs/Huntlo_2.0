@@ -312,7 +312,7 @@ export const ONBOARDING_DOCUMENT_READINESS: ScreeningWorkflowConfig = {
   demoTitle: "Huntlo Onboarding Document Readiness",
   demoSubtitle: "Offer-to-day-one timeline — silent simulation",
   demoFooter:
-    "Huntlo Voice · Onboarding checklist reminders · Illustrative outcome",
+    "Huntlo VoiceAI · Onboarding checklist reminders · Illustrative outcome",
   aiAskTopic: "Huntlo Onboarding Document Readiness voice workflow",
   aiAskPrompt: `What is Huntlo Onboarding Document Readiness on ${ONBOARDING_DOCUMENT_READINESS_PATH} (https://www.huntlo.ai${ONBOARDING_DOCUMENT_READINESS_PATH})? How does an onboarding checklist reminders voice workflow collect answers and route a human-reviewed next action?`,
 };
