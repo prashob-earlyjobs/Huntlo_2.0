@@ -20,9 +20,9 @@ export const MARKETING_PAGES = {
   contact: {
     path: "/contact",
     eyebrow: "Company",
-    title: "Contact us",
+    title: "Contact Huntlo | Sales, Support & General Enquiries",
     description:
-      "Get in touch with Huntlo for sales, support, partnerships, and security inquiries. Book a demo or email our team.",
+      "Contact Huntlo for product enquiries, AI voice solutions, partnerships, demos and general questions. Connect with our team.",
     ogImage: OG_IMAGES.platform,
   },
   faqs: {

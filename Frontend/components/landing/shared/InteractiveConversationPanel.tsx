@@ -32,6 +32,8 @@ type InteractiveConversationPanelProps = {
   nextAction?: string;
   onNextAction?: () => void;
   footer?: string;
+  /** Header badge label. Pass `null` to hide. Defaults to "Sample". */
+  badge?: string | null;
   className?: string;
   /** Auto-advance messages when playing. */
   autoPlay?: boolean;
@@ -51,7 +53,8 @@ export function InteractiveConversationPanel({
   fields,
   nextAction,
   onNextAction,
-  footer = "Illustrative workflow · no live call",
+  footer = "Workflow · no live call",
+  badge = "Sample",
   className,
   autoPlay = true,
 }: InteractiveConversationPanelProps) {
@@ -103,9 +106,11 @@ export function InteractiveConversationPanel({
             ) : null}
           </div>
         </div>
-        <span className="shrink-0 rounded-full border border-border bg-secondary px-2 py-0.5 text-[10px] font-medium text-muted-foreground sm:px-2.5 sm:py-1 sm:text-[11px]">
-          Sample
-        </span>
+        {badge ? (
+          <span className="shrink-0 rounded-full border border-border bg-secondary px-2 py-0.5 text-[10px] font-medium text-muted-foreground sm:px-2.5 sm:py-1 sm:text-[11px]">
+            {badge}
+          </span>
+        ) : null}
       </div>
 
       {tabs && tabs.length > 0 ? (

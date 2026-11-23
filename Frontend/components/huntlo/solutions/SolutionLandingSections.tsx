@@ -93,7 +93,7 @@ function CandidateQualificationMockup() {
       <div className="flex items-center justify-between gap-3 border-b border-border bg-secondary/60 px-3.5 py-3 sm:px-5">
         <div className="min-w-0">
           <p className="text-sm font-medium">Candidate qualification workspace</p>
-          <p className="text-xs text-muted-foreground">Illustrative product workflow</p>
+          <p className="text-xs text-muted-foreground">Product workflow</p>
         </div>
         <span className="rounded-full bg-primary/10 px-2.5 py-1 text-[10px] font-medium text-primary">
           Ready for recruiter review
@@ -149,7 +149,7 @@ function CandidateQualificationMockup() {
         </div>
       </div>
       <p className="border-t border-border px-4 py-3 text-xs text-muted-foreground sm:px-5">
-        Fictional example · not a customer record · no automated hiring score presented as a decision
+        No automated hiring score presented as a decision
       </p>
     </div>
   );
@@ -179,7 +179,7 @@ function HrCoordinationMockup() {
       <div className="flex items-center justify-between gap-3 border-b border-border bg-secondary/60 px-3.5 py-3 sm:px-5">
         <div className="min-w-0">
           <p className="text-sm font-medium">Employee onboarding overview</p>
-          <p className="text-xs text-muted-foreground">Illustrative workflow — fictional employee</p>
+          <p className="text-xs text-muted-foreground">Employee onboarding workflow</p>
         </div>
         <span className="rounded-full bg-violet-500/10 px-2.5 py-1 text-[10px] font-medium text-violet-700">
           In progress
@@ -258,7 +258,7 @@ function HrFollowUpsMockup() {
       <div className="flex items-center justify-between gap-3 border-b border-border bg-secondary/60 px-3.5 py-3 sm:px-5">
         <div className="min-w-0">
           <p className="text-sm font-medium">Employee check-in summary</p>
-          <p className="text-xs text-muted-foreground">Fictional example — for UI illustration</p>
+          <p className="text-xs text-muted-foreground">Employee check-in</p>
         </div>
         <span className="rounded-full bg-emerald-700/10 px-2.5 py-1 text-[10px] font-medium text-emerald-800">
           HR review
@@ -294,7 +294,7 @@ function HrFollowUpsMockup() {
         </div>
       </div>
       <p className="border-t border-border px-4 py-3 text-xs text-muted-foreground sm:px-5">
-        Privacy-aware illustration · sensitive concerns require human judgment
+        Privacy-aware · sensitive concerns require human judgment
       </p>
     </div>
   );
@@ -306,7 +306,7 @@ function ConcernIdentificationMockup() {
       <div className="flex items-center justify-between gap-3 border-b border-border bg-secondary/60 px-3.5 py-3 sm:px-5">
         <div className="min-w-0">
           <p className="text-sm font-medium">Concern review workspace</p>
-          <p className="text-xs text-muted-foreground">Illustrative product UI — fictional example</p>
+          <p className="text-xs text-muted-foreground">Concern review</p>
         </div>
         <span className="rounded-full bg-emerald-700/10 px-2.5 py-1 text-[10px] font-medium text-emerald-800">
           HR review
@@ -343,7 +343,7 @@ function ConcernIdentificationMockup() {
         </div>
       </div>
       <p className="border-t border-border px-4 py-3 text-xs text-muted-foreground sm:px-5">
-        Fictional example · no sentiment score, resignation prediction or grievance replacement
+        No sentiment score, resignation prediction or grievance replacement
       </p>
     </div>
   );

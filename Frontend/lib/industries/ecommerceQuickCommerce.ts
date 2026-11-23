@@ -42,7 +42,7 @@ export const ECOMMERCE_QUICK_COMMERCE: IndustryLandingConfig = {
     illustration: {
       variant: "activation-journey",
       header: "Delivery Partner Activation Journey",
-      candidate: "Rahul M. — fictional example",
+      candidate: "Rahul M.",
       location: "Bengaluru East",
       role: "Delivery Partner",
       stages: [
@@ -104,7 +104,7 @@ export const ECOMMERCE_QUICK_COMMERCE: IndustryLandingConfig = {
         },
       ],
       initialStageIndex: 2,
-      label: "Illustrative workflow",
+      label: "Workflow",
     },
   },
   aeo: {
@@ -222,14 +222,14 @@ export const ECOMMERCE_QUICK_COMMERCE: IndustryLandingConfig = {
       "Candidate expressed interest in delivery work, preferred Bengaluru East, and shared immediate availability subject to confirmation.",
     nextAction: "Clarify joining requirements",
     fields: [
-      { label: "Candidate", value: "Rahul M. — fictional example" },
+      { label: "Candidate", value: "Rahul M." },
       { label: "Role", value: "Delivery Partner" },
       { label: "Preferred location", value: "Bengaluru East" },
       { label: "Availability", value: "Immediate, subject to confirmation" },
       { label: "Qualification", value: "Pending recruiter review" },
     ],
     timeline: ["Interested", "Contacted", "Qualified", "Joining Coordination"],
-    label: "Illustrative activation card · fictional example",
+    label: "Activation card",
   },
   businessValue: {
     h2: "Turn Delivery Workforce Communication into a More Structured Process.",
@@ -306,7 +306,7 @@ export const ECOMMERCE_QUICK_COMMERCE: IndustryLandingConfig = {
     { label: "Candidate Qualification", href: "/solutions/candidate-qualification" },
     { label: "AI Onboarding Agents", href: "/solutions/ai-onboarding-agents" },
     { label: "HR Follow-Ups", href: "/solutions/hr-follow-ups" },
-    { label: "Huntlo VoiceAI", href: "/platform/voice-ai" },
+    { label: "Huntlo Voice AI", href: "/platform/voice-ai" },
     { label: "Logistics & Warehousing", href: "/industries/logistics-warehousing" },
     { label: "Retail & QSR", href: "/industries/retail-qsr" },
   ],

@@ -13,7 +13,7 @@ export function HaloHero() {
   return (
     <section id="top" className="container-x pt-14 md:pt-20">
       <div className="animate-rise mx-auto max-w-3xl text-center">
-        <Eyebrow>Huntlo VoiceAI · AI workforce agents</Eyebrow>
+        <Eyebrow>Huntlo Voice AI · AI workforce agents</Eyebrow>
         <h1 className="font-display-tight mt-6 text-[clamp(2.5rem,1.6rem+3.4vw,4.25rem)] text-foreground">AI agents that turn conversations <br className="hidden sm:block" />into workforce outcomes.</h1>
         <p className="mx-auto mt-5 max-w-xl text-base leading-relaxed text-muted-foreground md:text-lg">Automate the conversations and workflows behind hiring, onboarding and employee engagement — with AI voice agents built for real business operations.</p>
         <div className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row">
@@ -130,7 +130,7 @@ export function LightCta() {
         <div className="relative mx-auto max-w-xl">
           <Eyebrow>Get started</Eyebrow>
           <h2 className="font-display-tight fs-h2 mt-5">Every conversation should move your business forward.</h2>
-          <p className="mt-4 text-muted-foreground">See how Huntlo VoiceAI can help your team automate repetitive workforce conversations and turn responses into actionable next steps.</p>
+          <p className="mt-4 text-muted-foreground">See how Huntlo Voice AI can help your team automate repetitive workforce conversations and turn responses into actionable next steps.</p>
           <div className="mt-8 flex flex-col justify-center gap-3 sm:flex-row">
             <Button variant="brand" size="lg" asChild>
               <a href={V2_BOOK_DEMO_PATH} target="_blank" rel="noopener noreferrer">

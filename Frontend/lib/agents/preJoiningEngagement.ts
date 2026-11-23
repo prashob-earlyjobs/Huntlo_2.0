@@ -71,7 +71,7 @@ export const PRE_JOINING_ENGAGEMENT: ScreeningWorkflowConfig = {
       "Huntlo approaches pre-joining communication as an operational journey rather than a call-volume target. The team defines what must be learned, which answers need attention and who owns the next step.",
     ],
     notice:
-      "This is an illustrative industry scenario, not a claim about a named Huntlo customer.",
+      "Industry scenario.",
   },
   how: {
     id: "workflow",
@@ -114,7 +114,7 @@ export const PRE_JOINING_ENGAGEMENT: ScreeningWorkflowConfig = {
       "The team sees a time-stamped outcome rather than an unverified label.",
     ],
     notice:
-      "This practical scenario describes a possible workflow; it should not be represented as a live integration or client case study.",
+      "Product workflow.",
   },
   useful: {
     id: "useful-results",
@@ -173,7 +173,7 @@ export const PRE_JOINING_ENGAGEMENT: ScreeningWorkflowConfig = {
   limitationNotice: {
     title: "Limitations and product truth",
     items: [
-      "Illustrative workflow only — not a live customer case study or audio demo.",
+      "Product workflow overview.",
       "No automatic employment decisions from unreviewed AI responses.",
       "Integrations, languages and automated actions require verification before deployment claims.",
       `Capability status: ${PRE_JOINING_ENGAGEMENT_CAPABILITY_STATUS}. Indexation follows product approval.`,
@@ -306,7 +306,7 @@ export const PRE_JOINING_ENGAGEMENT: ScreeningWorkflowConfig = {
   ],
   demoTitle: "Huntlo Pre-Joining Engagement",
   demoSubtitle: "Offer-to-day-one timeline — silent simulation",
-  demoFooter: "Huntlo VoiceAI · Pre-joining communication · Illustrative outcome",
+  demoFooter: "Huntlo Voice AI · Pre-joining communication",
   aiAskTopic: "Huntlo Pre-Joining Engagement voice workflow",
   aiAskPrompt: `What is Huntlo Pre-Joining Engagement on ${PRE_JOINING_ENGAGEMENT_PATH} (https://www.huntlo.ai${PRE_JOINING_ENGAGEMENT_PATH})? How does a pre-joining communication voice workflow collect answers and route a human-reviewed next action?`,
 };

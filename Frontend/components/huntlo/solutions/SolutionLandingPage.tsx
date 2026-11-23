@@ -37,7 +37,7 @@ export function SolutionLandingPage({ config }: SolutionLandingPageProps) {
         <SolutionLandingFaq config={config} />
         <SolutionLandingFinalCta config={config} />
       </main>
-      <Footer />
+      <Footer showAiAskBand />
     </div>
   );
 }

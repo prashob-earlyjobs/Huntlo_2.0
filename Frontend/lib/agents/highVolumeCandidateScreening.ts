@@ -76,7 +76,7 @@ export const HIGH_VOLUME_CANDIDATE_SCREENING: ScreeningWorkflowConfig = {
       "Huntlo approaches large applicant queues as an operational journey rather than a call-volume target. The team defines what must be learned, which answers need attention and who owns the next step.",
     ],
     notice:
-      "This is an illustrative industry scenario, not a claim about a named Huntlo customer.",
+      "Industry scenario.",
   },
   how: {
     id: "workflow",
@@ -119,7 +119,7 @@ export const HIGH_VOLUME_CANDIDATE_SCREENING: ScreeningWorkflowConfig = {
       "The team sees a time-stamped outcome rather than an unverified label.",
     ],
     notice:
-      "This practical scenario describes a possible workflow; it should not be represented as a live integration or client case study.",
+      "Product workflow.",
   },
   useful: {
     id: "useful-results",
@@ -177,7 +177,7 @@ export const HIGH_VOLUME_CANDIDATE_SCREENING: ScreeningWorkflowConfig = {
   limitationNotice: {
     title: "Limitations and product truth",
     items: [
-      "Illustrative workflow only — not a live customer case study or audio demo.",
+      "Product workflow overview.",
       "No automatic employment decisions from unreviewed AI responses.",
       "Integrations, languages and automated actions require verification before deployment claims.",
       `Capability status: ${HIGH_VOLUME_CANDIDATE_SCREENING_CAPABILITY_STATUS}. Indexation follows product approval.`,

@@ -88,6 +88,7 @@ import {
 } from './modules/public/index.js';
 import { publicUtmRouter } from './modules/utm/index.js';
 import { aiVoiceDemoRouter } from './modules/ai-voice-demo/index.js';
+import { contactEnquiryRouter } from './modules/contact-enquiry/index.js';
 import { vocallabsRouter } from './modules/vocallabs/vocallabs.routes.js';
 import {
   vocallabsPostWebhookRouter,
@@ -152,6 +153,7 @@ export function createApp(): Express {
   app.use('/api/blog', publicBlogRouter);
   app.use('/api/v1/public/utm', publicUtmRouter);
   app.use('/api/v1/public/ai-voice-demo', aiVoiceDemoRouter);
+  app.use('/api/v1/public/contact-enquiry', contactEnquiryRouter);
   app.use('/api/pricing-plans', publicPricingRouter);
   app.use('/api/v1', openApiRouter);
   app.use('/api/v1/auth', authRouter);

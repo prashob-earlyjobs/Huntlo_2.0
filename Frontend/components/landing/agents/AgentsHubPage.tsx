@@ -86,7 +86,7 @@ export function AgentsHubPage() {
             ))}
           </ul>
           <p className="mt-8 rounded-xl border border-border bg-secondary px-4 py-3 text-sm text-muted-foreground">
-            Illustrative product directory — confirm availability before publication. No customer
+            Product directory — confirm availability before publication. No customer
             logos, performance numbers or unverified integrations are implied.
           </p>
 

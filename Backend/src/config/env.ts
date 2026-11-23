@@ -82,6 +82,19 @@ const envSchema = z.object({
     ),
   SYSTEM_MAIL_FROM_NAME: z.string().default('Huntlo'),
 
+  /** Inbox for /contact enquiry notifications (defaults to info@huntlo.ai in service). */
+  CONTACT_ENQUIRY_TO: z
+    .string()
+    .optional()
+    .transform((value) => {
+      const trimmed = (value ?? '').trim();
+      return trimmed || undefined;
+    })
+    .refine(
+      (value) => value === undefined || z.string().email().safeParse(value).success,
+      { message: 'CONTACT_ENQUIRY_TO must be a valid email' }
+    ),
+
   // Platform admin console — comma-separated emails granted platformAdmin access
   PLATFORM_ADMIN_EMAILS: z
     .string()

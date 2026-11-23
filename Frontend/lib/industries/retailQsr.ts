@@ -42,7 +42,7 @@ export const RETAIL_QSR: IndustryLandingConfig = {
     illustration: {
       variant: "multi-store-dashboard",
       header: "Multi-Store Hiring Dashboard",
-      candidate: "Sneha K. — fictional example",
+      candidate: "Sneha K.",
       location: "Koramangala Store",
       role: "Retail Associate",
       owner: "Store HR",
@@ -110,7 +110,7 @@ export const RETAIL_QSR: IndustryLandingConfig = {
         },
       ],
       initialStageIndex: 2,
-      label: "Illustrative workflow",
+      label: "Workflow",
     },
   },
   aeo: {
@@ -229,12 +229,12 @@ export const RETAIL_QSR: IndustryLandingConfig = {
     fields: [
       { label: "Location", value: "Koramangala Store" },
       { label: "Role", value: "Retail Associate" },
-      { label: "Candidate", value: "Sneha K. — fictional example" },
+      { label: "Candidate", value: "Sneha K." },
       { label: "Shift preference", value: "Morning" },
       { label: "Qualification", value: "Ready for review" },
     ],
     timeline: ["Open Position", "Screening", "Ready for Review", "Joining"],
-    label: "Illustrative store workflow · fictional example",
+    label: "Store workflow",
   },
   businessValue: {
     h2: "Give Store Teams More Clarity Without Adding More Manual Coordination.",
@@ -310,7 +310,7 @@ export const RETAIL_QSR: IndustryLandingConfig = {
     { label: "AI Hiring Agents", href: "/solutions/ai-hiring-agents" },
     { label: "Interview Coordination", href: "/solutions/interview-coordination" },
     { label: "Employee Check-ins", href: "/solutions/employee-check-ins" },
-    { label: "Huntlo VoiceAI", href: "/platform/voice-ai" },
+    { label: "Huntlo Voice AI", href: "/platform/voice-ai" },
     { label: "E-Commerce & Quick Commerce", href: "/industries/ecommerce-quick-commerce" },
     { label: "BPO & Support", href: "/industries/bpo-customer-support" },
   ],

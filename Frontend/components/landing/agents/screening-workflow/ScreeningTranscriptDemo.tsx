@@ -23,7 +23,7 @@ export function ScreeningTranscriptDemo({
   transcript,
   rubric,
   title = "Candidate screening",
-  subtitle = "Illustrative conversation",
+  subtitle = "Conversation",
 }: ScreeningTranscriptDemoProps) {
   const lines = transcript.slice(0, 3);
   const criteria = rubric.slice(0, 4);
@@ -62,7 +62,7 @@ export function ScreeningTranscriptDemo({
       messages={messages}
       fields={fields}
       nextAction="Recruiter reviews before any next step"
-      footer="Illustrative workflow · no live call"
+      footer="Workflow · no live call"
     />
   );
 }

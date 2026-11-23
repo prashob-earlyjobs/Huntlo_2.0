@@ -49,7 +49,7 @@ export const HUNTLO_VS_ALEX_AI: CompareVsCompetitorContent = {
     competitorVisual:
       "Alex AI is positioned around AI-powered candidate interviewing.",
     panelTitle: "Interview to workflow",
-    panelSubtitle: "Huntlo vs Alex AI · illustrative comparison",
+    panelSubtitle: "Huntlo vs Alex AI",
   },
   directAnswer: {
     h2: "What Is the Difference Between Huntlo and Alex AI?",
@@ -248,7 +248,7 @@ export const HUNTLO_VS_ALEX_AI: CompareVsCompetitorContent = {
   },
   productExperience: {
     h2: "See the Candidate Journey, Not Just the Interview.",
-    label: "Illustrative candidate journey context.",
+    label: "Candidate journey context",
     candidate: "Sneha K.",
     role: "Business Development Executive",
     conversationOutcome: "Conversation completed with qualification information ready for review.",
