@@ -5,7 +5,7 @@ const DELIVERS = [
   "Automated interview scheduling and follow-ups",
   "Candidate enrichment and contact discovery",
   "Collaborative hiring workflows for recruiters and hiring managers",
-  "Recruiter network access through EarlyJobs",
+  "Access to experienced recruiters across key hiring markets",
   "Analytics, pipeline tracking, and hiring performance insights",
 ];
 
@@ -23,10 +23,9 @@ export function AboutPageContent() {
   return (
     <div className="landing-legal-body mt-8">
       <p>
-        Huntlo is agentic AI recruiting infrastructure — built by the team behind EarlyJobs, one of
-        India&apos;s largest recruiter networks. After seeing firsthand how broken manual recruiting
-        processes were for high-growth teams, the EarlyJobs team built Huntlo to give every hiring
-        organization autonomous AI agents that source, engage, screen, and schedule — without
+        Huntlo is agentic AI recruiting infrastructure built for high-growth hiring teams. After
+        seeing firsthand how broken manual recruiting processes were, we built Huntlo to give every
+        hiring organization autonomous AI agents that source, engage, screen, and schedule — without
         requiring manual recruiter intervention at every step.
       </p>
       <p>
@@ -34,9 +33,9 @@ export function AboutPageContent() {
         engages, and qualifies talent through agentic AI workflows. Recruiters describe roles in
         natural language, and Huntlo&apos;s AI searches 50+ platforms, runs autonomous outreach
         across email and WhatsApp, conducts AI voice screenings, schedules interviews, and manages
-        hiring pipelines from one unified system. Huntlo also provides access to the EarlyJobs
-        recruiter network, enabling organizations to scale hiring faster across India, the US, the
-        UK, the Middle East, and global markets.
+        hiring pipelines from one unified system. Huntlo also connects teams with experienced
+        recruiters when human expertise is needed, helping organizations scale hiring faster across
+        India, the US, the UK, the Middle East, and global markets.
       </p>
 
       <section className="landing-legal-section">

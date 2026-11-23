@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 
-const EARLYJOBS_JOBS_URL = "https://www.earlyjobs.ai/jobs";
+const HUNTLO_CAREERS_URL = "https://www.linkedin.com/company/huntlo-ai";
 
 export default function CareersPage() {
-  redirect(EARLYJOBS_JOBS_URL);
+  redirect(HUNTLO_CAREERS_URL);
 }

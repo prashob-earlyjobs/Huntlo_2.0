@@ -20,7 +20,7 @@ export const FAQ_SECTIONS: FaqSection[] = [
       {
         question: "What is Huntlo?",
         answer:
-          "Huntlo is agentic AI recruiting infrastructure — a platform where autonomous AI agents source candidates from 50+ professional platforms, run personalized outreach across email and WhatsApp, conduct AI voice screening calls, and schedule interviews without requiring manual recruiter intervention at each step. Built by the EarlyJobs team, Huntlo is designed for staffing agencies, enterprise TA teams, GCCs, and high-growth startups that need to hire faster without scaling recruiter headcount proportionally.",
+          "Huntlo is agentic AI recruiting infrastructure — a platform where autonomous AI agents source candidates from 50+ professional platforms, run personalized outreach across email and WhatsApp, conduct AI voice screening calls, and schedule interviews without requiring manual recruiter intervention at each step. Huntlo is designed for staffing agencies, enterprise TA teams, GCCs, and high-growth startups that need to hire faster without scaling recruiter headcount proportionally.",
       },
       {
         question: "What is agentic AI recruiting?",

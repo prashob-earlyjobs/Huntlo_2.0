@@ -43,7 +43,7 @@ export function Capabilities() {
             <div className="flex items-center gap-3 rounded-xl border border-border bg-card p-3">
               <VoiceClipPlay
                 src={outreachAudio}
-                label="Customer care executive sample"
+                label="Customer care executive"
                 buttonFirst
                 withWaveform
                 buttonClassName="bg-accent text-primary"

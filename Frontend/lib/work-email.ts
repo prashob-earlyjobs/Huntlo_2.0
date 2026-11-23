@@ -115,7 +115,7 @@ export function workEmailDomain(email: string): string | null {
 
 /**
  * Derive a company display name from a work email domain.
- * `jane@earlyjobs.ai` → `Earlyjobs`, `ops@acme-corp.com` → `Acme Corp`.
+ * `jane@huntlo.ai` → `Huntlo`, `ops@acme-corp.com` → `Acme Corp`.
  */
 export function companyNameFromWorkEmail(email: string): string | null {
   const domain = workEmailDomain(email);

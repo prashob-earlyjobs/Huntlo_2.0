@@ -21,8 +21,9 @@ const FOOTER_SOLUTIONS_LINKS = [
 
 const FOOTER_LINK_HREFS: Record<string, string> = {
   About: "/about",
-  Careers: "https://www.earlyjobs.ai/jobs",
+  Careers: "https://www.linkedin.com/company/huntlo-ai",
   Contact: "/contact",
+  Sitemap: "/sitemap.xml",
   ...Object.fromEntries(COMPARISON_FOOTER_LINKS.map((item) => [item.label, item.href])),
   ...Object.fromEntries(V2_PLATFORM_ITEMS.map((item) => [item.label, item.href])),
   ...Object.fromEntries(FOOTER_SOLUTIONS_LINKS.map((item) => [item.label, item.href])),
@@ -90,7 +91,7 @@ const FOOTER_COLUMNS: FooterColumn[] = [
   },
   {
     title: "Company",
-    links: ["About", "Careers", "Contact"],
+    links: ["About", "Careers", "Contact", "Sitemap"],
   },
   {
     title: "Comparison",

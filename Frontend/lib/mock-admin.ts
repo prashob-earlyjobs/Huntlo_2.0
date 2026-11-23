@@ -1142,8 +1142,8 @@ export const BLOG_ARTICLES: BlogArticle[] = [
   },
   {
     id: "b5",
-    title: "EarlyJobs × Huntlo: our roadmap",
-    slug: "earlyjobs-huntlo-roadmap",
+    title: "Huntlo: our roadmap",
+    slug: "huntlo-roadmap",
     category: "Company",
     author: "Ananya Sharma",
     status: "Draft",

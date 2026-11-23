@@ -28,7 +28,7 @@ export function FeedbackThemesDemo({
   actionQueue,
   title = "Employee check-in",
   subtitle = "Protected feedback · human review",
-  footer = "Workflow · no prediction labels",
+  footer,
 }: FeedbackThemesDemoProps) {
   const lines = transcript.slice(0, 2);
   const themeRows = themes.slice(0, 3);
