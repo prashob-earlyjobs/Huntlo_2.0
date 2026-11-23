@@ -43,7 +43,7 @@ export function TalentDiscoveryStory({ reduceMotion }: TalentDiscoveryStoryProps
               </li>
             ))}
           </ul>
-          <p className="mt-6 text-sm text-[#434654]">— before conversations ever begin.</p>
+          <p className="mt-6 text-sm text-[#434654]">- before conversations ever begin.</p>
         </div>
       </section>
 
@@ -60,7 +60,7 @@ export function TalentDiscoveryStory({ reduceMotion }: TalentDiscoveryStoryProps
               Introducing Talent Discovery Intelligence™
             </h2>
             <p className="mt-5 text-base leading-relaxed text-white/65 md:text-lg">
-              Everything continuously improving — without recruiters continuously managing candidate
+              Everything continuously improving - without recruiters continuously managing candidate
               searches.
             </p>
           </div>

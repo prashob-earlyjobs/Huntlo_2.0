@@ -6,48 +6,27 @@ import {
   FOOTER_PLATFORM_PARTNERS,
   type FooterPlatformPartner,
 } from "@/lib/footerPlatformPartners";
+import { INDUSTRY_FOOTER_LINKS } from "@/lib/industries/industryPages";
 import { FOOTER_LEGAL_LINKS, legalPageHref } from "@/lib/legalPages";
+import { V2_PLATFORM_ITEMS, V2_SOLUTIONS_ITEMS } from "@/lib/v2Nav";
 
-import { LandingLogo } from "./LandingLogo";
+import { HuntloMark } from "./LandingLogo";
+
+/** Footer Solutions column — existing three pillars plus verified additional routes. */
+const FOOTER_SOLUTIONS_LINKS = [
+  ...V2_SOLUTIONS_ITEMS.map((item) => ({ label: item.label, href: item.href })),
+  { label: "Candidate Sourcing", href: "/solutions/candidate-sourcing" },
+  { label: "People Scout", href: "/people-scout" },
+] as const;
 
 const FOOTER_LINK_HREFS: Record<string, string> = {
-  Sourcing: "/sourcing",
-  Screening: "/screening",
-  Assessments: "/assessments",
-  Interview: "/interview",
-  "Source Candidates": "/sourcing",
-  "People Scout": "/people-scout",
-  "AI Voice Recruiter": "/ai-voice-recruiter",
-  "Candidate Pool": "/candidate-pool",
-  Integrations: "/integrations",
-  Huntlo360: "/huntlo360",
-  "GCC Recruitment Software": "/gcc-recruitment-software",
-  "GCC Hiring Platform": "/gcc-hiring-platform",
-  "AI Recruiting for GCCs": "/ai-recruiting-for-gccs",
-  "GCC Talent Intelligence": "/gcc-talent-intelligence",
-  "GCC Sourcing Automation": "/gcc-sourcing-automation",
-  "Vibe Sourcing": "/vibe-sourcing",
-  "AI Hiring Infrastructure": "/ai-hiring-infrastructure",
-  "AI Hiring Intelligence Infrastructure": "/ai-hiring-infrastructure",
-  "Agentic Hiring": "/agentic-hiring",
-  "Agentic Hiring™": "/agentic-hiring",
-  "Hiring OS": "/hiring-os",
-  "Hiring Workflows": "/hiring-workflows",
-  "Intelligent Hiring Workflows™": "/hiring-workflows",
-  "Workflow Orchestration": "/workflow-orchestration",
-  "Hiring Intelligence Orchestration™": "/workflow-orchestration",
-  "Candidate Discovery": "/candidate-sourcing",
-  "AI Native Candidate Discovery™": "/candidate-sourcing",
-  Documentation: "/docs",
-  "Knowledge Centre": "/learn",
-  Research: "/research",
-  "Tools & Calculators": "/tools",
-  Blog: "/blog",
-  FAQs: "/faqs",
   About: "/about",
   Careers: "https://www.earlyjobs.ai/jobs",
   Contact: "/contact",
   ...Object.fromEntries(COMPARISON_FOOTER_LINKS.map((item) => [item.label, item.href])),
+  ...Object.fromEntries(V2_PLATFORM_ITEMS.map((item) => [item.label, item.href])),
+  ...Object.fromEntries(FOOTER_SOLUTIONS_LINKS.map((item) => [item.label, item.href])),
+  ...Object.fromEntries(INDUSTRY_FOOTER_LINKS.map((item) => [item.label, item.href])),
 };
 
 const FOOTER_SOCIAL_LINKS = [
@@ -91,60 +70,27 @@ const FOOTER_SOCIAL_LINKS = [
   },
 ] as const;
 
-const FOOTER_COLUMNS: {
+type FooterColumn = {
   title: string;
   titleHref?: string;
   links: string[];
-}[] = [
+};
+
+const FOOTER_COLUMNS: FooterColumn[] = [
   {
-    title: "Hiring OS",
-    titleHref: "/hiring-os",
-    links: [
-      "Sourcing",
-      "Candidate Discovery",
-      "Screening",
-      "AI Voice Recruiter",
-      "Assessments",
-      "Interview",
-    ],
+    title: "Platform",
+    titleHref: "/platform",
+    links: V2_PLATFORM_ITEMS.map((item) => item.label),
   },
   {
-    title: "Product",
-    links: [
-      "Huntlo360",
-      "Source Candidates",
-      "People Scout",
-      "AI Voice Recruiter",
-      "Vibe Sourcing",
-      "Candidate Pool",
-      "Integrations",
-    ],
+    title: "Solutions",
+    titleHref: "/solutions/ai-hiring-agents",
+    links: FOOTER_SOLUTIONS_LINKS.map((item) => item.label),
   },
   {
-    title: "For GCC",
-    titleHref: "/solutions/global-capability-centers",
-    links: [
-      "GCC Recruitment Software",
-      "GCC Hiring Platform",
-      "AI Recruiting for GCCs",
-      "GCC Talent Intelligence",
-      "GCC Sourcing Automation",
-    ],
-  },
-  {
-    title: "Resources",
-    titleHref: "/resources",
-    links: [
-      "AI Hiring Infrastructure",
-      "Agentic Hiring",
-      "Hiring OS",
-      "Hiring Workflows",
-      "Knowledge Centre",
-      "Research",
-      "Tools & Calculators",
-      "Blog",
-      "FAQs",
-    ],
+    title: "Industries",
+    titleHref: "/industries",
+    links: INDUSTRY_FOOTER_LINKS.map((item) => item.label),
   },
   {
     title: "Company",
@@ -162,6 +108,8 @@ export function LandingFooter({
   aiAskTopic,
   aiAskLabelTemplate,
   platformPartners,
+  /** Dark AI-ask + social band — homepage only. */
+  showAiAskBand = false,
 }: {
   /** Page-specific GEO prompt for AI platform deep links. */
   aiAskPrompt?: string;
@@ -171,6 +119,7 @@ export function LandingFooter({
   aiAskLabelTemplate?: string;
   /** Fully custom partner list — overrides prompt/topic helpers. */
   platformPartners?: FooterPlatformPartner[];
+  showAiAskBand?: boolean;
 } = {}) {
   const partners =
     platformPartners ??
@@ -184,66 +133,78 @@ export function LandingFooter({
 
   return (
     <footer className="border-t border-[#c3c6d6]/25 bg-white">
-      <div className="relative overflow-hidden bg-[#141b2b] px-4 py-10 md:px-8 lg:px-12">
-        <div className="pointer-events-none absolute inset-0 opacity-30">
-          <div className="absolute right-0 top-1/2 h-[280px] w-[420px] -translate-y-1/2 rounded-full bg-[#0050cb] blur-[100px]" />
-        </div>
-        <div className="relative z-10 mx-auto flex max-w-7xl flex-col gap-6 sm:flex-row sm:items-center sm:justify-between">
-          <Link href="/" className="inline-block shrink-0">
-            <LandingLogo className="h-10 w-auto" />
-          </Link>
-          <div className="flex flex-wrap items-center gap-3 sm:justify-end sm:gap-3.5">
-            <div
-              className="flex flex-wrap items-center gap-3 sm:gap-3.5"
-              aria-label="Ask AI assistants about Huntlo"
-            >
-              {partners.map((partner) => (
-                <a
-                  key={partner.name}
-                  href={partner.href}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  title={partner.description}
-                  aria-label={partner.description}
-                  className="rounded-md opacity-90 transition-opacity hover:opacity-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white/80"
-                >
-                  <img
-                    src={partner.logoSrc}
-                    alt={partner.name}
-                    className="h-6 w-auto max-w-[4.25rem] object-contain brightness-0 invert"
-                  />
-                </a>
-              ))}
-            </div>
-            <span className="hidden text-sm text-white/40 sm:inline" aria-hidden>
-              |
-            </span>
-            <div
-              className="flex items-center gap-3 sm:gap-3.5"
-              aria-label="Huntlo social media"
-            >
-              {FOOTER_SOCIAL_LINKS.map((social) => (
-                <a
-                  key={social.name}
-                  href={social.href}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  title={social.name}
-                  aria-label={social.name}
-                  className="text-white/80 transition-colors hover:text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white/80"
-                >
-                  {social.icon}
-                </a>
-              ))}
+      {showAiAskBand ? (
+        <div className="relative overflow-hidden bg-[#141b2b] px-4 py-10 md:px-8 lg:px-12">
+          <div className="pointer-events-none absolute inset-0 opacity-30">
+            <div className="absolute right-0 top-1/2 h-[280px] w-[420px] -translate-y-1/2 rounded-full bg-[#0050cb] blur-[100px]" />
+          </div>
+          <div className="relative z-10 mx-auto flex max-w-7xl flex-col gap-6 sm:flex-row sm:items-center sm:justify-between">
+            <Link href="/" className="inline-block shrink-0">
+              <HuntloMark />
+            </Link>
+            <div className="flex flex-wrap items-center gap-3 sm:justify-end sm:gap-3.5">
+              <div
+                className="flex flex-wrap items-center gap-3 sm:gap-3.5"
+                aria-label="Ask AI assistants about Huntlo"
+              >
+                {partners.map((partner) => (
+                  <a
+                    key={partner.name}
+                    href={partner.href}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    title={partner.description}
+                    aria-label={partner.description}
+                    className="rounded-md opacity-90 transition-opacity hover:opacity-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white/80"
+                  >
+                    <img
+                      src={partner.logoSrc}
+                      alt={partner.name}
+                      className="h-6 w-auto max-w-[4.25rem] object-contain brightness-0 invert"
+                    />
+                  </a>
+                ))}
+              </div>
+              <span className="hidden text-sm text-white/40 sm:inline" aria-hidden>
+                |
+              </span>
+              <div
+                className="flex items-center gap-3 sm:gap-3.5"
+                aria-label="Huntlo social media"
+              >
+                {FOOTER_SOCIAL_LINKS.map((social) => (
+                  <a
+                    key={social.name}
+                    href={social.href}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    title={social.name}
+                    aria-label={social.name}
+                    className="text-white/80 transition-colors hover:text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white/80"
+                  >
+                    {social.icon}
+                  </a>
+                ))}
+              </div>
             </div>
           </div>
         </div>
-      </div>
+      ) : null}
       <div className="mx-auto max-w-7xl px-4 py-12 md:px-8 md:py-14 lg:px-12">
         <nav
-          className="grid w-full grid-cols-2 gap-x-8 gap-y-10 sm:gap-x-10 md:grid-cols-3 md:gap-x-8 md:gap-y-10 lg:grid-cols-6 lg:gap-x-6 lg:gap-y-0"
+          className="grid w-full grid-cols-2 gap-x-8 gap-y-10 sm:gap-x-10 md:grid-cols-3 md:gap-x-8 md:gap-y-10 lg:grid-cols-6 lg:gap-x-5 lg:gap-y-0"
           aria-label="Footer"
         >
+          <div className="min-w-0 col-span-2 sm:col-span-1 lg:col-span-1">
+            <Link href="/" className="inline-block" aria-label="Huntlo home">
+              <HuntloMark />
+            </Link>
+            <p className="mt-4 max-w-xs text-sm leading-relaxed text-[#434654]">
+              Voice-Powered AI Agents That Automate Workforce Workflows.
+              From Hiring to Onboarding to Retention - Turning Every Conversation
+              into Action.
+            </p>
+          </div>
           {FOOTER_COLUMNS.map((col) => (
             <div key={col.title} className="min-w-0">
               <h4 className="text-xs font-bold uppercase tracking-widest text-[#141b2b]">

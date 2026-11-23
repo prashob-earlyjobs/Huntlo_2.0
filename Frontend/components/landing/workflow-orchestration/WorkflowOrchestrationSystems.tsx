@@ -34,7 +34,7 @@ export function WorkflowOrchestrationSystems({
             </h2>
           </div>
 
-          <div className="mt-10 grid gap-3 md:grid-cols-4">
+          <div className="mt-10 grid auto-rows-fr gap-3 sm:grid-cols-2 lg:grid-cols-4">
             {BENTO_CARDS.map((card, index) => (
               <motion.div
                 key={card.title}
@@ -42,11 +42,11 @@ export function WorkflowOrchestrationSystems({
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true }}
                 transition={{ duration: 0.3, delay: reduceMotion ? 0 : index * 0.03 }}
-                className={card.span}
+                className="h-full"
               >
                 <Link
                   href={card.href}
-                  className="group flex h-full flex-col justify-between rounded-3xl border border-[#c3c6d6]/35 bg-[#f7f8fc] p-6 transition-colors hover:border-[#0050cb]/40 hover:bg-[#f1f3ff]"
+                  className="group flex h-full min-h-[9.5rem] flex-col justify-between rounded-3xl border border-[#c3c6d6]/35 bg-[#f7f8fc] p-6 transition-colors hover:border-[#0050cb]/40 hover:bg-[#f1f3ff]"
                 >
                   <div>
                     <p className="text-base font-bold text-[#141b2b] group-hover:text-[#0050cb]">
@@ -197,7 +197,7 @@ export function WorkflowOrchestrationSystems({
             </div>
           </div>
           <p className="mt-8 text-base font-semibold text-[#141b2b]">
-            Future hiring belongs to outcome intelligence — not process intelligence.
+            Future hiring belongs to outcome intelligence - not process intelligence.
           </p>
         </div>
       </section>

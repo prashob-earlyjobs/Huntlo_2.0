@@ -174,7 +174,7 @@ const LINKS = {
   },
   platform: {
     name: "Huntlo Platform",
-    href: "/platform",
+    href: "/agentic-ai-platform",
     icon: "hub",
     description: "Platform overview of connected hiring execution.",
   },

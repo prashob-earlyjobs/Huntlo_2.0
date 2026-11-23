@@ -149,7 +149,7 @@ export const ENTERPRISE_BUILT_FOR = [
   { label: "Staffing firms", href: "/solutions/staffing-agencies" },
   { label: "Technical hiring", href: "/solutions/startups" },
   { label: "Executive hiring", href: "/solutions/executive-search" },
-  { label: "Global hiring teams", href: "/solutions" },
+  { label: "Global hiring teams", href: "/industries" },
 ] as const;
 
 export const ENTERPRISE_SUPPORTS = [

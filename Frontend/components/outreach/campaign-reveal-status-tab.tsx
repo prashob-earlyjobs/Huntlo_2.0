@@ -52,7 +52,7 @@ const FILTERS: Array<{ id: "all" | RevealContactStatus; label: string; countKey?
 ];
 
 function StatusBadge({ status }: { status: RevealContactStatus | null }) {
-  if (!status) return <span className="text-xs text-muted-foreground">—</span>;
+  if (!status) return <span className="text-xs text-muted-foreground">-</span>;
   return (
     <span
       className={cn(

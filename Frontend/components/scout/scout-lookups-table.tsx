@@ -113,6 +113,8 @@ function LookupDrawer({
   onRerun,
   onProfileSaved,
   phoneRevealPoll = true,
+  showEnrichmentSections = true,
+  showPoolActions = true,
 }: {
   api?: PeopleScoutApi;
   lookup: RecentLookup | null;
@@ -121,6 +123,8 @@ function LookupDrawer({
   onRerun: (lookup: RecentLookup) => void;
   onProfileSaved?: () => void;
   phoneRevealPoll?: boolean;
+  showEnrichmentSections?: boolean;
+  showPoolActions?: boolean;
 }) {
   const [detail, setDetail] = useState<ScoutLookupResponse | null>(null);
   const [loading, setLoading] = useState(false);
@@ -233,6 +237,8 @@ function LookupDrawer({
                 initiallySaved={lookup.saved || Boolean(detail?.saved)}
                 onSaved={onProfileSaved}
                 phoneRevealPoll={phoneRevealPoll}
+                showEnrichmentSections={showEnrichmentSections}
+                showPoolActions={showPoolActions}
               />
             ) : null}
 
@@ -309,6 +315,8 @@ export function ScoutLookupsTable({
   onRerun,
   onLookupUpdated,
   phoneRevealPoll = true,
+  showEnrichmentSections = true,
+  showPoolActions = true,
 }: {
   api?: PeopleScoutApi;
   title?: string;
@@ -316,6 +324,8 @@ export function ScoutLookupsTable({
   onRerun: (lookup: RecentLookup) => void;
   onLookupUpdated?: () => void;
   phoneRevealPoll?: boolean;
+  showEnrichmentSections?: boolean;
+  showPoolActions?: boolean;
 }) {
   const [active, setActive] = useState<RecentLookup | null>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -468,6 +478,8 @@ export function ScoutLookupsTable({
         onRerun={onRerun}
         onProfileSaved={onLookupUpdated}
         phoneRevealPoll={phoneRevealPoll}
+        showEnrichmentSections={showEnrichmentSections}
+        showPoolActions={showPoolActions}
       />
 
       <Snackbar

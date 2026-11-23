@@ -11,6 +11,8 @@ export function EasyScoutWorkspace() {
       lookupTypes={EASY_SCOUT_LOOKUP_TYPES}
       historyTitle="Recent Easy Scout lookups"
       phoneRevealPoll={false}
+      showEnrichmentSections={false}
+      showPoolActions={false}
     />
   );
 }

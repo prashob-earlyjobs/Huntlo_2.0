@@ -8,7 +8,7 @@ import { buildPageMetadata, OG_IMAGES } from "@/lib/siteMetadata";
 const page = MARKETING_PAGES.about;
 
 export const metadata: Metadata = buildPageMetadata({
-  title: "About Huntlo — Agentic AI Recruiting Infrastructure | Huntlo",
+  title: "About Huntlo - Agentic AI Recruiting Infrastructure | Huntlo",
   description: page.description,
   ogImage: OG_IMAGES.about,
   path: page.path,

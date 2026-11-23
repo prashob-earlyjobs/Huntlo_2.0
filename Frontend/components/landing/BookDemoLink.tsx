@@ -18,7 +18,7 @@ export function BookDemoLink({
   children = "Book Demo",
   showIcon = false,
   disabledClassName,
-  disabledTitle = "Set NEXT_PUBLIC_CALENDLY_URL to enable booking",
+  disabledTitle = "Demo booking is temporarily unavailable",
   onClick,
 }: BookDemoLinkProps) {
   const calendlyUrl = getCalendlyBookDemoUrl();

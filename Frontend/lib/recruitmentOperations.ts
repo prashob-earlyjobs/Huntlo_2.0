@@ -168,13 +168,13 @@ export const STACK_TOMORROW = [
 ] as const;
 
 export const ENTERPRISE_BUILT_FOR = [
-  { label: "Talent acquisition teams", href: "/solutions" },
+  { label: "Talent acquisition teams", href: "/industries" },
   { label: "Recruiting leaders", href: "/solutions/enterprise-hiring" },
   { label: "Enterprises", href: "/solutions/enterprise-hiring" },
   { label: "GCCs", href: "/solutions/global-capability-centers" },
   { label: "Staffing firms", href: "/solutions/staffing-agencies" },
   { label: "Executive hiring teams", href: "/solutions/executive-search" },
-  { label: "Global hiring teams", href: "/solutions" },
+  { label: "Global hiring teams", href: "/industries" },
 ] as const;
 
 export const ENTERPRISE_SUPPORTS = [

@@ -192,13 +192,13 @@ export const STACK_TOMORROW = [
 ] as const;
 
 export const ENTERPRISE_BUILT_FOR = [
-  { label: "Enterprises", href: "/solutions" },
+  { label: "Enterprises", href: "/industries" },
   { label: "GCCs", href: "/solutions/global-capability-centers" },
   { label: "Staffing firms", href: "/solutions/it-staffing" },
   { label: "Recruitment agencies", href: "/solutions/rpo" },
-  { label: "Global hiring teams", href: "/solutions" },
+  { label: "Global hiring teams", href: "/industries" },
   { label: "Executive hiring", href: "/solutions/executive-search" },
-  { label: "Technical hiring", href: "/solutions" },
+  { label: "Technical hiring", href: "/industries" },
 ] as const;
 
 export const WHY_NOT = [

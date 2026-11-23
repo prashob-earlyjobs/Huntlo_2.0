@@ -269,7 +269,7 @@ export function RecruitingAgentsFinalCta() {
         </p>
         <div className="mt-9 flex flex-col items-stretch justify-center gap-3 sm:flex-row sm:items-center">
           <BookDemoLink className={primaryCtaClass}>Book Enterprise Demo</BookDemoLink>
-          <Link href="/platform" className={secondaryCtaClass}>
+          <Link href="/agentic-ai-platform" className={secondaryCtaClass}>
             Explore Huntlo
           </Link>
           <Link href="#agentic-hiring" className={ghostCtaClass}>

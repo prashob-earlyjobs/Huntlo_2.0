@@ -285,7 +285,7 @@ export const TOOL_PAGES: ToolPage[] = [
       {
         question: "Where do I find the platform cost to enter?",
         answer:
-          "Use the annual cost of the plan and seats you would actually need. Huntlo's plans are listed on the [pricing page](/pricing); for enterprise pricing, [book a demo](/book-a-demo).",
+          "Use the annual cost of the plan and seats you would actually need. Huntlo's plans are listed on the [pricing page](/pricing); for enterprise pricing, [book a demo](https://calendly.com/huntlo-info/15min).",
       },
       {
         question: "Why is my ROI negative?",

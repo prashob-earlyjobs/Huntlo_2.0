@@ -5,36 +5,42 @@ import { motion } from "motion/react";
 
 import { BookDemoLink } from "@/components/landing/BookDemoLink";
 
-export function FinalCTA() {
-  return (
-    <section className="py-24 lg:py-32 relative overflow-hidden">
-      {/* Background */}
-      <div className="absolute inset-0 bg-blue-600">
-        <div className="absolute inset-0 bg-gradient-to-tr from-blue-700 via-blue-600 to-indigo-500" />
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px] bg-white opacity-10 rounded-full blur-[120px]" />
-      </div>
+type FinalCTAProps = {
+  reduceMotion?: boolean;
+};
 
-      <div className="relative z-10 max-w-4xl mx-auto px-6 text-center">
+export function FinalCTA({ reduceMotion = false }: FinalCTAProps) {
+  return (
+    <section className="relative overflow-hidden bg-[#050914] px-4 py-20 text-white sm:px-6 md:py-28 lg:px-12">
+      <div
+        className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_center,_rgba(0,80,203,0.32),_transparent_58%)]"
+        aria-hidden
+      />
+
+      <div className="relative z-10 mx-auto max-w-3xl text-center">
         <motion.div
-          initial={{ opacity: 0, y: 20 }}
+          initial={reduceMotion ? false : { opacity: 0, y: 16 }}
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true }}
-          transition={{ duration: 0.6 }}
+          transition={{ duration: 0.55 }}
         >
-          <h2 className="text-4xl md:text-6xl font-black text-white tracking-tight mb-8">
-            Find Talent Before Everyone Else Does.
+          <h2 className="font-[family-name:var(--font-epilogue)] text-[1.85rem] font-bold leading-tight tracking-tight md:text-[2.6rem]">
+            Get Started with AI Sourcing
           </h2>
-          <p className="text-xl md:text-2xl text-blue-100 mb-12 max-w-2xl mx-auto font-medium">
-            Discover qualified candidates, enrich profiles, and build hiring momentum.
+          <p className="mx-auto mt-5 max-w-2xl text-base leading-relaxed text-white/70 md:text-lg">
+            Ready to never search aimlessly again? Try the Sourcing demo and build a pipeline of
+            qualified candidates in minutes.
           </p>
-          <div className="flex flex-col sm:flex-row justify-center items-center gap-4">
+          <p className="mt-3 text-sm font-medium text-[#8eb0ff]">Trusted by hiring teams across the U.S.</p>
+
+          <div className="mt-9 flex flex-col items-stretch justify-center gap-3 sm:flex-row sm:items-center">
             <Link
               href="/signup"
-              className="w-full sm:w-auto px-8 py-4 bg-white text-blue-600 font-bold rounded-full transition-all hover:bg-slate-50 shadow-xl shadow-black/10 hover:-translate-y-0.5 text-center"
+              className="inline-flex w-full items-center justify-center rounded-full bg-[#0050cb] px-8 py-3.5 text-sm font-semibold text-white transition hover:bg-[#003fa3] sm:w-auto"
             >
-              Start Sourcing
+              Try the Sourcing Demo
             </Link>
-            <BookDemoLink className="w-full sm:w-auto px-8 py-4 bg-blue-700/50 hover:bg-blue-700 text-white font-bold rounded-full transition-all border border-blue-500 hover:border-blue-400 text-center">
+            <BookDemoLink className="inline-flex w-full items-center justify-center rounded-full border border-white/20 bg-white/5 px-8 py-3.5 text-sm font-semibold text-white transition hover:bg-white/10 sm:w-auto">
               Book Demo
             </BookDemoLink>
           </div>

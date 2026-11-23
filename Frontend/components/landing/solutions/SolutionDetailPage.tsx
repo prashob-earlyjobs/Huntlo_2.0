@@ -9,7 +9,7 @@ import { CenteredFaq } from "@/components/landing/product-ui/CenteredFaq";
 import { ProductSurface } from "@/components/landing/product-ui/ProductSurface";
 import { TrustLayer } from "@/components/landing/product-ui/TrustLayer";
 import { CTA } from "@/lib/ctaLabels";
-import { SOLUTIONS_PATH, type SolutionPage, type SolutionVisual } from "@/lib/industrySolutionPages";
+import { type SolutionPage, type SolutionVisual } from "@/lib/industrySolutionPages";
 import { SOLUTION_SURFACES } from "@/lib/productSurfaces";
 
 import {
@@ -100,7 +100,7 @@ export function SolutionDetailPage({ page }: { page: SolutionPage }) {
   const surface = SOLUTION_SURFACES[page.slug];
 
   return (
-    <div className="landing-page min-h-screen overflow-x-hidden bg-[#faf9ff] text-[#141b2b] selection:bg-[#0050cb] selection:text-[#c1cfff]">
+    <div className="landing-page min-h-screen bg-[#faf9ff] text-[#141b2b] selection:bg-[#0050cb] selection:text-[#c1cfff]">
       <LandingNav />
       <main key={page.slug} className="animate-in fade-in-0 slide-in-from-bottom-2 duration-500">
         {/* Hero */}
@@ -114,7 +114,7 @@ export function SolutionDetailPage({ page }: { page: SolutionPage }) {
               <SolutionBreadcrumb
                 items={[
                   { label: "Home", href: "/" },
-                  { label: "Solutions", href: SOLUTIONS_PATH },
+                  { label: "Solutions", href: "/solutions" },
                   { label: page.breadcrumb },
                 ]}
               />
@@ -443,7 +443,7 @@ export function SolutionDetailPage({ page }: { page: SolutionPage }) {
           />
           <RelatedGrid
             hub={{
-              href: SOLUTIONS_PATH,
+              href: "/solutions",
               icon: "apps",
               title: "AI Hiring Solutions",
               description: "Every Huntlo solution, compared by hiring model.",

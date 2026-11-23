@@ -153,14 +153,23 @@ const emptyValues: DemoFormValues = {
 type DemoCallFormProps = {
   variant: "hero" | "page";
   id?: string;
+  /** Narrower single-column layout for 3-up heroes. */
+  dense?: boolean;
 };
 
 const fieldClass =
-  "mt-1.5 w-full rounded-xl border border-black/10 bg-white/80 px-3.5 py-2.5 text-sm text-[#101828] outline-none transition placeholder:text-[#98a2b3] focus:border-[#5b4dff] focus:ring-2 focus:ring-[#5b4dff]/20";
+  "box-border mt-1.5 w-full max-w-full min-w-0 rounded-xl border border-black/10 bg-white/80 px-3.5 py-2.5 text-sm text-[#101828] outline-none transition placeholder:text-[#98a2b3] focus:border-[#5b4dff] focus:ring-2 focus:ring-[#5b4dff]/20";
 
-const labelClass = "block text-xs font-semibold tracking-wide text-[#344054]";
+const fieldClassDense =
+  "box-border mt-1 w-full max-w-full min-w-0 rounded-lg border border-black/10 bg-white/80 px-3 py-2 text-sm text-[#101828] outline-none transition placeholder:text-[#98a2b3] focus:border-[#0050cb] focus:ring-2 focus:ring-[#0050cb]/20";
 
-export function DemoCallForm({ variant, id }: DemoCallFormProps) {
+const labelClass = "block min-w-0 text-xs font-semibold tracking-wide text-[#344054]";
+
+function digitsOnly(value: string) {
+  return value.replace(/\D/g, "");
+}
+
+export function DemoCallForm({ variant, id, dense = false }: DemoCallFormProps) {
   const { remaining, limit, applyRemaining } = useDemoCalls();
   const browserUsed = limit - remaining;
   const [values, setValues] = useState<DemoFormValues>(emptyValues);
@@ -171,6 +180,10 @@ export function DemoCallForm({ variant, id }: DemoCallFormProps) {
 
   function update(key: keyof DemoFormValues, value: string) {
     setValues((current) => ({ ...current, [key]: value }));
+  }
+
+  function updatePhone(value: string) {
+    update("phone", digitsOnly(value));
   }
 
   async function onSubmit(event: FormEvent) {
@@ -243,30 +256,47 @@ export function DemoCallForm({ variant, id }: DemoCallFormProps) {
   }
 
   const isHero = variant === "hero";
+  const inputClass = dense ? fieldClassDense : fieldClass;
+  const accentFocus =
+    "outline-none transition focus:border-[#0050cb] focus:ring-2 focus:ring-[#0050cb]/20";
 
   return (
     <form
       id={id}
       onSubmit={onSubmit}
-      className={`rounded-3xl border border-white/50 bg-white/75 shadow-[0_24px_80px_rgba(16,24,40,0.08)] backdrop-blur-xl ${isHero ? "p-4 sm:p-5" : "p-5 sm:p-6"}`}
+      className={`box-border w-full max-w-full overflow-hidden rounded-3xl border border-white/50 bg-white/75 shadow-[0_24px_80px_rgba(16,24,40,0.08)] backdrop-blur-xl ${
+        dense ? "h-full p-3.5 sm:p-4 lg:p-5" : isHero ? "p-4 sm:p-5" : "p-5 sm:p-6"
+      }`}
     >
       <div className="flex items-start justify-between gap-3">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#5b4dff]">
+          <p
+            className={`font-semibold uppercase tracking-[0.18em] ${dense ? "text-[10px] text-[#0050cb]" : "text-xs text-[#5b4dff]"}`}
+          >
             {isHero ? "Live demo" : "Experience it"}
           </p>
-          <h3 className="mt-1 text-lg font-semibold tracking-tight text-[#101828]">
+          <h3
+            className={`mt-1 font-semibold tracking-tight text-[#101828] ${dense ? "text-base" : "text-lg"}`}
+          >
             {isHero ? "Try Huntlo AI Voice" : "Start a live demo call"}
           </h3>
         </div>
-        <Waveform />
+        {dense ? null : <Waveform />}
       </div>
 
-      <div className={isHero ? "mt-4 grid gap-3 sm:grid-cols-2" : "mt-5 space-y-3"}>
+      <div
+        className={
+          dense
+            ? "mt-3 grid gap-2.5"
+            : isHero
+              ? "mt-4 grid gap-3 sm:grid-cols-2"
+              : "mt-5 space-y-3"
+        }
+      >
         <label className={labelClass}>
           Company Name
           <input
-            className={fieldClass}
+            className={inputClass}
             value={values.company}
             onChange={(event) => update("company", event.target.value)}
             autoComplete="organization"
@@ -276,7 +306,7 @@ export function DemoCallForm({ variant, id }: DemoCallFormProps) {
           <label className={labelClass}>
             Name
             <input
-              className={fieldClass}
+              className={inputClass}
               value={values.name}
               onChange={(event) => update("name", event.target.value)}
               autoComplete="name"
@@ -286,19 +316,23 @@ export function DemoCallForm({ variant, id }: DemoCallFormProps) {
         <label className={labelClass}>
           Work Email
           <input
-            className={fieldClass}
+            className={inputClass}
             type="email"
             value={values.email}
             onChange={(event) => update("email", event.target.value)}
             autoComplete="email"
           />
         </label>
-        <label className={`${labelClass} ${isHero ? "sm:col-span-2" : ""}`}>
+        <label className={`${labelClass} ${isHero && !dense ? "sm:col-span-2" : ""}`}>
           Mobile Number
-          <div className="mt-1.5 flex gap-2">
+          <div className={`flex min-w-0 gap-2 ${dense ? "mt-1" : "mt-1.5"}`}>
             <select
               aria-label="Country code"
-              className="w-[7.25rem] shrink-0 rounded-xl border border-black/10 bg-white/80 px-2.5 py-2.5 text-sm text-[#101828] outline-none transition focus:border-[#5b4dff] focus:ring-2 focus:ring-[#5b4dff]/20"
+              className={`box-border shrink-0 border border-black/10 bg-white/80 text-sm text-[#101828] ${accentFocus} ${
+                dense
+                  ? "w-[5.75rem] max-w-[40%] rounded-lg px-1.5 py-2"
+                  : "w-[7.25rem] rounded-xl px-2.5 py-2.5 focus:border-[#5b4dff] focus:ring-[#5b4dff]/20"
+              }`}
               value={countryIso}
               onChange={(event) => setCountryIso(event.target.value)}
             >
@@ -310,21 +344,48 @@ export function DemoCallForm({ variant, id }: DemoCallFormProps) {
             </select>
             <input
               id={isHero ? "ai-voice-phone" : undefined}
-              className="min-w-0 flex-1 rounded-xl border border-black/10 bg-white/80 px-3.5 py-2.5 text-sm text-[#101828] outline-none transition placeholder:text-[#98a2b3] focus:border-[#5b4dff] focus:ring-2 focus:ring-[#5b4dff]/20"
+              className={`box-border min-w-0 flex-1 border border-black/10 bg-white/80 text-sm text-[#101828] placeholder:text-[#98a2b3] ${accentFocus} ${
+                dense
+                  ? "rounded-lg px-2.5 py-2"
+                  : "rounded-xl px-3.5 py-2.5 focus:border-[#5b4dff] focus:ring-[#5b4dff]/20"
+              }`}
               type="tel"
-              inputMode="tel"
-              value={values.phone}
-              onChange={(event) => update("phone", event.target.value)}
+              inputMode="numeric"
+              pattern="[0-9]*"
               autoComplete="tel-national"
               autoFocus={isHero}
-              placeholder={nationalNumberPlaceholder(countryIso)}
+              placeholder={nationalNumberPlaceholder(countryIso).replace(/\D/g, " ").trim() || "9876543210"}
+              value={values.phone}
+              onChange={(event) => updatePhone(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.ctrlKey || event.metaKey || event.altKey) return;
+                const allowed = [
+                  "Backspace",
+                  "Delete",
+                  "Tab",
+                  "Escape",
+                  "Enter",
+                  "ArrowLeft",
+                  "ArrowRight",
+                  "ArrowUp",
+                  "ArrowDown",
+                  "Home",
+                  "End",
+                ];
+                if (allowed.includes(event.key)) return;
+                if (!/^\d$/.test(event.key)) event.preventDefault();
+              }}
+              onPaste={(event) => {
+                event.preventDefault();
+                updatePhone(event.clipboardData.getData("text"));
+              }}
             />
           </div>
         </label>
-        <label className={`${labelClass} ${isHero ? "sm:col-span-2" : ""}`}>
+        <label className={`${labelClass} ${isHero && !dense ? "sm:col-span-2" : ""}`}>
           Job
           <select
-            className={fieldClass}
+            className={inputClass}
             value={values.role}
             onChange={(event) => update("role", event.target.value)}
           >
@@ -340,7 +401,7 @@ export function DemoCallForm({ variant, id }: DemoCallFormProps) {
           <label className={labelClass}>
             Hiring Volume
             <input
-              className={fieldClass}
+              className={inputClass}
               value={values.volume}
               onChange={(event) => update("volume", event.target.value)}
               placeholder="e.g. 40 hires / quarter"
@@ -349,8 +410,12 @@ export function DemoCallForm({ variant, id }: DemoCallFormProps) {
         )}
       </div>
 
-      <div className={`flex items-center justify-between gap-3 border-t border-black/5 ${isHero ? "mt-4 pt-3" : "mt-5 pt-4"}`}>
-        <div>
+      <div
+        className={`flex flex-wrap items-center justify-between gap-3 border-t border-black/5 ${
+          dense ? "mt-3 pt-3" : isHero ? "mt-4 pt-3" : "mt-5 pt-4"
+        }`}
+      >
+        <div className="min-w-0">
           <p className="text-[11px] font-medium uppercase tracking-wide text-[#667085]">
             Calls remaining today
           </p>
@@ -361,7 +426,11 @@ export function DemoCallForm({ variant, id }: DemoCallFormProps) {
         <button
           type="submit"
           disabled={remaining <= 0 || submitting}
-          className="inline-flex min-h-11 items-center justify-center rounded-full bg-[#5b4dff] px-5 text-sm font-semibold text-white shadow-lg shadow-[#5b4dff]/25 transition hover:bg-[#4a3de6] disabled:cursor-not-allowed disabled:opacity-50"
+          className={`inline-flex shrink-0 items-center justify-center rounded-full text-sm font-semibold text-white transition disabled:cursor-not-allowed disabled:opacity-50 ${
+            dense
+              ? "min-h-10 bg-[#0050cb] px-3.5 shadow-lg shadow-[#0050cb]/25 hover:bg-[#003fa3] sm:px-4"
+              : "min-h-11 bg-[#5b4dff] px-5 shadow-lg shadow-[#5b4dff]/25 hover:bg-[#4a3de6]"
+          }`}
         >
           {submitting ? "Starting call…" : isHero ? "Start AI Demo Call" : "Start AI Demo"}
         </button>

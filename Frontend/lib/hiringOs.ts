@@ -182,14 +182,14 @@ export const AGENTIC_FLOW = [
 ] as const;
 
 export const ENTERPRISE_BUILT_FOR = [
-  { label: "Enterprises", href: "/solutions" },
+  { label: "Enterprises", href: "/industries" },
   { label: "GCCs", href: "/solutions/global-capability-centers" },
-  { label: "Technical hiring", href: "/solutions" },
+  { label: "Technical hiring", href: "/industries" },
   { label: "Executive hiring", href: "/solutions/executive-search" },
-  { label: "Global hiring", href: "/solutions" },
+  { label: "Global hiring", href: "/industries" },
   { label: "Staffing firms", href: "/solutions/it-staffing" },
   { label: "Recruitment agencies", href: "/solutions/rpo" },
-  { label: "High volume hiring", href: "/solutions" },
+  { label: "High volume hiring", href: "/industries" },
 ] as const;
 
 export const STACK_TODAY = [

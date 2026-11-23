@@ -1,0 +1,586 @@
+/*
+ * Faithful port of supplied styles (2).css for the homepage.
+ * Imported from globals.css so Tailwind compiles @theme / @utility.
+ * Tokens stay on .halo-home so other routes keep their chrome.
+ */
+
+@theme inline {
+  --font-display: "Geist", var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  --color-primary-deep: var(--primary-deep);
+  --color-navy: var(--navy);
+  --color-navy-foreground: var(--navy-foreground);
+  --color-navy-muted: var(--navy-muted);
+  --color-navy-border: var(--navy-border);
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+  --shadow-soft: var(--shadow-soft);
+  --shadow-lift: var(--shadow-lift);
+}
+
+/* Homepage — original Geist + oklch tokens */
+.halo-home {
+  --radius: 0.75rem;
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --radius-2xl: calc(var(--radius) + 8px);
+  --radius-3xl: calc(var(--radius) + 12px);
+  --radius-4xl: calc(var(--radius) + 16px);
+
+  --background: oklch(1 0 0);
+  --foreground: oklch(0.21 0.03 264);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.21 0.03 264);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.21 0.03 264);
+  --primary: oklch(0.546 0.215 262.9);
+  --primary-deep: oklch(0.488 0.217 264.4);
+  --primary-foreground: oklch(1 0 0);
+  --secondary: oklch(0.984 0.003 247.9);
+  --secondary-foreground: oklch(0.21 0.03 264);
+  --muted: oklch(0.984 0.003 247.9);
+  --muted-foreground: oklch(0.554 0.041 257.4);
+  --accent: oklch(0.97 0.014 254.6);
+  --accent-foreground: oklch(0.488 0.217 264.4);
+  --navy: oklch(0.208 0.04 265.8);
+  --navy-foreground: oklch(0.97 0.01 255);
+  --navy-muted: oklch(0.7 0.03 257);
+  --navy-border: oklch(1 0 0 / 10%);
+  --success: oklch(0.62 0.16 150);
+  --warning: oklch(0.72 0.15 70);
+  --destructive: oklch(0.577 0.245 27.325);
+  --destructive-foreground: oklch(1 0 0);
+  --border: oklch(0.929 0.013 255.5);
+  --input: oklch(0.929 0.013 255.5);
+  --ring: oklch(0.546 0.215 262.9);
+  --chart-1: oklch(0.546 0.215 262.9);
+  --chart-2: oklch(0.7 0.12 255);
+  --chart-3: oklch(0.82 0.07 255);
+  --chart-4: oklch(0.9 0.04 255);
+  --chart-5: oklch(0.95 0.02 255);
+  --sidebar: oklch(0.984 0.003 247.858);
+  --sidebar-foreground: oklch(0.21 0.03 264);
+  --sidebar-primary: oklch(0.546 0.215 262.9);
+  --sidebar-primary-foreground: oklch(1 0 0);
+  --sidebar-accent: oklch(0.97 0.014 254.6);
+  --sidebar-accent-foreground: oklch(0.21 0.03 264);
+  --sidebar-border: oklch(0.929 0.013 255.5);
+  --sidebar-ring: oklch(0.546 0.215 262.9);
+  --gradient-glow: radial-gradient(60% 80% at 50% 0%, oklch(0.546 0.215 262.9 / 0.18), transparent 70%);
+  --gradient-blue: linear-gradient(135deg, var(--primary) 0%, var(--primary-deep) 100%);
+  --primary-hover: var(--primary-deep);
+  --shadow-soft: 0 1px 2px oklch(0.21 0.03 264 / 0.04), 0 12px 32px -12px oklch(0.21 0.03 264 / 0.12);
+  --shadow-lift: 0 1px 2px oklch(0.21 0.03 264 / 0.05), 0 30px 60px -24px oklch(0.488 0.217 264.4 / 0.28);
+  --flow-1: oklch(0.546 0.215 262.9 / 0.55);
+  --flow-2: oklch(0.78 0.11 250 / 0.6);
+  --flow-3: oklch(0.86 0.06 285 / 0.7);
+  --tool-calendar: oklch(0.56 0.2 260);
+  --tool-mail: oklch(0.59 0.2 27);
+  --tool-messaging: oklch(0.59 0.15 151);
+  --tool-outlook: oklch(0.52 0.15 246);
+  --tool-arc: oklch(0.83 0.035 260);
+  --tool-ribbon: oklch(0.75 0.12 253 / 0.17);
+
+  --font-sans: "Geist", var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Geist", var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "Geist Mono", var(--font-geist-mono), ui-monospace, monospace;
+
+  background-color: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  /* Keep overflow visible so sticky Platform/Solutions dropdowns are not clipped. */
+  min-height: 100dvh;
+}
+
+/* PAGE 01 / V2 — Inter + hex design system on the same chrome utilities */
+.halo-home.v2-home {
+  --background: #ffffff;
+  --foreground: #111827;
+  --card: #ffffff;
+  --card-foreground: #111827;
+  --popover: #ffffff;
+  --popover-foreground: #111827;
+  --primary: #2563eb;
+  --primary-deep: #1d4ed8;
+  --primary-foreground: #ffffff;
+  --secondary: #f8fafc;
+  --secondary-foreground: #111827;
+  --muted: #f8fafc;
+  --muted-foreground: #64748b;
+  --accent: #eff6ff;
+  --accent-foreground: #1d4ed8;
+  --navy: #0f172a;
+  --navy-foreground: #f8fafc;
+  --navy-muted: #94a3b8;
+  --navy-border: rgb(255 255 255 / 10%);
+  --success: #16a34a;
+  --warning: #d97706;
+  --destructive: #dc2626;
+  --destructive-foreground: #ffffff;
+  --border: #e2e8f0;
+  --input: #e2e8f0;
+  --ring: #2563eb;
+  --gradient-glow: radial-gradient(60% 80% at 50% 0%, rgb(37 99 235 / 0.16), transparent 70%);
+  --gradient-blue: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+  --shadow-soft: 0 1px 2px rgb(17 24 39 / 0.04), 0 12px 32px -12px rgb(17 24 39 / 0.12);
+  --shadow-lift: 0 1px 2px rgb(17 24 39 / 0.05), 0 30px 60px -24px rgb(37 99 235 / 0.28);
+  --font-sans: var(--font-inter), "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-display: var(--font-inter), "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+}
+
+.halo-home * {
+  border-color: var(--border);
+}
+
+.halo-home h1,
+.halo-home h2,
+.halo-home h3 {
+  text-wrap: balance;
+}
+
+@utility font-display-tight {
+  font-family: var(--font-display);
+  font-weight: 500;
+  letter-spacing: -0.04em;
+  line-height: 1.05;
+}
+@utility fs-h1 {
+  font-size: clamp(2.75rem, 1.6rem + 4.6vw, 4.75rem);
+}
+@utility fs-h2 {
+  font-size: clamp(2.25rem, 1.5rem + 2.8vw, 3.5rem);
+}
+@utility eyebrow {
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+@utility bg-glow {
+  background-image: var(--gradient-glow);
+}
+@utility bg-blue-grad {
+  background-image: var(--gradient-blue);
+}
+@utility bg-hiring-grad {
+  background-image: linear-gradient(135deg, oklch(0.55 0.2 255) 0%, oklch(0.45 0.18 265) 55%, oklch(0.42 0.16 250) 100%);
+}
+@utility bg-onboarding-grad {
+  background-image: linear-gradient(135deg, oklch(0.58 0.17 305) 0%, oklch(0.48 0.15 290) 55%, oklch(0.44 0.14 280) 100%);
+}
+@utility bg-retention-grad {
+  background-image: linear-gradient(135deg, oklch(0.68 0.07 105) 0%, oklch(0.55 0.07 95) 55%, oklch(0.48 0.06 90) 100%);
+}
+@utility bg-grid {
+  background-image: linear-gradient(var(--border) 1px, transparent 1px),
+    linear-gradient(90deg, var(--border) 1px, transparent 1px);
+  background-size: 56px 56px;
+  mask-image: radial-gradient(ellipse at 50% 0%, black 20%, transparent 70%);
+}
+@utility container-x {
+  width: 100%;
+  max-width: 1280px;
+  margin-inline: auto;
+  padding-inline: 1.25rem;
+  @media (min-width: 768px) {
+    padding-inline: 2rem;
+  }
+}
+@utility section-y {
+  padding-block: 4.5rem;
+  @media (min-width: 1024px) {
+    padding-block: 7.5rem;
+  }
+}
+
+@keyframes wave {
+  0%,
+  100% {
+    transform: scaleY(0.3);
+  }
+  50% {
+    transform: scaleY(1);
+  }
+}
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes pulse-dot {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 oklch(0.62 0.16 150 / 0.5);
+  }
+  50% {
+    box-shadow: 0 0 0 6px oklch(0.62 0.16 150 / 0);
+  }
+}
+@keyframes listening {
+  0%,
+  100% {
+    transform: scale(1);
+    opacity: 0.75;
+  }
+  50% {
+    transform: scale(1.18);
+    opacity: 1;
+  }
+}
+@utility animate-wave {
+  animation: wave 1.1s ease-in-out infinite;
+  transform-origin: center;
+}
+@utility animate-rise {
+  animation: rise 0.45s ease-out both;
+}
+@utility animate-pulse-dot {
+  animation: pulse-dot 1.8s ease-out infinite;
+}
+@utility animate-listening {
+  animation: listening 0.9s ease-in-out infinite;
+  transform-origin: center;
+}
+
+/* Plain-CSS fallbacks — ensure /new looks correct even if a utility misses the pipeline */
+.halo-home .font-display-tight {
+  font-family: var(--font-display);
+  font-weight: 500;
+  letter-spacing: -0.04em;
+  line-height: 1.05;
+}
+.halo-home .fs-h1 {
+  font-size: clamp(2.75rem, 1.6rem + 4.6vw, 4.75rem);
+}
+.halo-home .fs-h2 {
+  font-size: clamp(2.25rem, 1.5rem + 2.8vw, 3.5rem);
+}
+.halo-home .eyebrow {
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+.halo-home .bg-glow {
+  background-image: var(--gradient-glow);
+}
+.halo-home .bg-blue-grad {
+  background-image: var(--gradient-blue);
+}
+.halo-home .bg-hiring-grad {
+  background-image: linear-gradient(135deg, oklch(0.55 0.2 255) 0%, oklch(0.45 0.18 265) 55%, oklch(0.42 0.16 250) 100%);
+}
+.halo-home .bg-onboarding-grad {
+  background-image: linear-gradient(135deg, oklch(0.58 0.17 305) 0%, oklch(0.48 0.15 290) 55%, oklch(0.44 0.14 280) 100%);
+}
+.halo-home .bg-retention-grad {
+  background-image: linear-gradient(135deg, oklch(0.68 0.07 105) 0%, oklch(0.55 0.07 95) 55%, oklch(0.48 0.06 90) 100%);
+}
+.halo-home .bg-grid {
+  background-image: linear-gradient(var(--border) 1px, transparent 1px),
+    linear-gradient(90deg, var(--border) 1px, transparent 1px);
+  background-size: 56px 56px;
+  mask-image: radial-gradient(ellipse at 50% 0%, black 20%, transparent 70%);
+}
+.halo-home .container-x {
+  width: 100%;
+  max-width: 1280px;
+  margin-inline: auto;
+  padding-inline: 1.25rem;
+}
+@media (min-width: 768px) {
+  .halo-home .container-x {
+    padding-inline: 2rem;
+  }
+}
+.halo-home .section-y {
+  padding-block: 4.5rem;
+}
+@media (min-width: 1024px) {
+  .halo-home .section-y {
+    padding-block: 7.5rem;
+  }
+}
+.halo-home.v2-home .section-y {
+  padding-block: 2.5rem;
+}
+@media (min-width: 768px) {
+  .halo-home.v2-home .section-y {
+    padding-block: 3.5rem;
+  }
+}
+@media (min-width: 1024px) {
+  .halo-home.v2-home .section-y {
+    padding-block: 5.5rem;
+  }
+}
+.halo-home .animate-wave {
+  animation: wave 1.1s ease-in-out infinite;
+  transform-origin: center;
+}
+.halo-home .animate-rise {
+  animation: rise 0.45s ease-out both;
+}
+.halo-home .animate-pulse-dot {
+  animation: pulse-dot 1.8s ease-out infinite;
+}
+.halo-home .animate-listening {
+  animation: listening 0.9s ease-in-out infinite;
+  transform-origin: center;
+}
+.halo-home .shadow-soft {
+  box-shadow: var(--shadow-soft);
+}
+.halo-home .shadow-lift {
+  box-shadow: var(--shadow-lift);
+}
+.halo-home .bg-navy {
+  background-color: var(--navy);
+}
+.halo-home .text-navy {
+  color: var(--navy);
+}
+.halo-home .text-navy-foreground {
+  color: var(--navy-foreground);
+}
+.halo-home .text-navy-muted {
+  color: var(--navy-muted);
+}
+.halo-home .border-navy-border {
+  border-color: var(--navy-border);
+}
+.halo-home .bg-primary-deep {
+  background-color: var(--primary-deep);
+}
+.halo-home .hover\:bg-primary-deep:hover {
+  background-color: var(--primary-deep);
+}
+
+.halo-home .reveal {
+  opacity: 0;
+  transform: translateY(16px);
+  transition: opacity 0.6s ease, transform 0.6s ease;
+}
+.halo-home .reveal.is-in {
+  opacity: 1;
+  transform: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  .halo-home .reveal {
+    opacity: 1;
+    transform: none;
+    transition: none;
+  }
+  .halo-home .animate-wave,
+  .halo-home .animate-rise,
+  .halo-home .animate-pulse-dot,
+  .halo-home .animate-listening {
+    animation: none;
+  }
+}
+
+@keyframes drift {
+  0%,
+  100% {
+    transform: translateX(0) scaleY(1);
+  }
+  50% {
+    transform: translateX(-3%) scaleY(1.06);
+  }
+}
+@utility animate-drift {
+  animation: drift 14s ease-in-out infinite;
+}
+.halo-home .animate-drift {
+  animation: drift 14s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .animate-drift,
+  .halo-home .animate-drift {
+    animation: none;
+  }
+}
+
+.halo-home .page-frame {
+  position: relative;
+  max-width: 1280px;
+  margin-inline: auto;
+  border-inline: 1px solid var(--border);
+  overflow-x: clip;
+}
+.halo-home .page-frame > section {
+  position: relative;
+  border-top: 1px solid var(--border);
+}
+.halo-home .page-frame > section:first-child {
+  border-top: 0;
+}
+.halo-home .page-frame > section:not(:first-child)::before,
+.halo-home .page-frame > section:not(:first-child)::after {
+  content: "";
+  position: absolute;
+  top: -4px;
+  width: 7px;
+  height: 7px;
+  z-index: 2;
+  background: var(--background);
+  border: 1px solid color-mix(in oklab, var(--foreground) 35%, transparent);
+  border-radius: 1px;
+}
+.halo-home .page-frame > section:not(:first-child)::before {
+  left: -4px;
+}
+.halo-home .page-frame > section:not(:first-child)::after {
+  right: -4px;
+}
+
+.halo-home .tool-calendar {
+  color: var(--tool-calendar);
+}
+.halo-home .tool-mail {
+  color: var(--tool-mail);
+}
+.halo-home .tool-messaging {
+  color: var(--tool-messaging);
+}
+.halo-home .tool-outlook {
+  color: var(--tool-outlook);
+}
+.halo-home .tool-heading {
+  font-size: 2.75rem;
+  line-height: 1.15;
+  letter-spacing: 0;
+}
+.halo-home .tool-ribbon {
+  fill: none;
+  stroke: var(--tool-ribbon);
+  stroke-width: 45;
+  animation: tool-ribbon-drift 18s ease-in-out infinite;
+}
+.halo-home .tool-ribbon path:nth-child(2) {
+  opacity: 0.65;
+}
+.halo-home .tool-ribbon path:nth-child(3) {
+  opacity: 0.35;
+}
+.halo-home .tool-arc {
+  stroke: var(--tool-arc);
+  stroke-width: 1;
+}
+.halo-home .tool-signal {
+  stroke: var(--primary);
+  stroke-width: 1.5;
+  stroke-dasharray: 4 940;
+  animation: tool-signal-travel 16s linear infinite;
+}
+.halo-home .tool-node {
+  width: 8.5%;
+  aspect-ratio: 1;
+}
+.halo-home .tool-badge {
+  animation: tool-float 7s ease-in-out infinite;
+  transition: box-shadow 0.25s ease;
+}
+.halo-home .tool-node:nth-of-type(even) .tool-badge {
+  animation-delay: -3s;
+}
+.halo-home .tool-label {
+  opacity: 0;
+  transition: opacity 0.2s ease;
+  pointer-events: none;
+  z-index: 20;
+}
+.halo-home .tool-node:hover .tool-label {
+  opacity: 1;
+}
+.halo-home .tool-wordmark {
+  font-size: 13px;
+  letter-spacing: -0.02em;
+}
+.halo-home .tool-hub {
+  width: 13%;
+  aspect-ratio: 1;
+}
+.halo-home .tool-hub-icon {
+  width: 28%;
+  height: 28%;
+}
+@keyframes tool-float {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-4px);
+  }
+}
+@keyframes tool-signal-travel {
+  to {
+    stroke-dashoffset: -944;
+  }
+}
+@keyframes tool-ribbon-drift {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(10px);
+  }
+}
+@media (max-width: 767px) {
+  .halo-home .tool-heading {
+    font-size: 1.875rem;
+  }
+  .halo-home .tool-node {
+    width: 11.5%;
+  }
+  .halo-home .tool-wordmark {
+    font-size: 7.5px;
+  }
+  .halo-home .tool-hub {
+    width: 16%;
+  }
+  .halo-home .tool-section .tool-ribbon {
+    height: 210px;
+  }
+  .halo-home .tool-section .divide-x > div > span {
+    display: block;
+    min-height: 32px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .halo-home .tool-badge,
+  .halo-home .tool-signal,
+  .halo-home .tool-ribbon {
+    animation: none;
+  }
+}
+
+.halo-home a:focus-visible,
+.halo-home button:focus-visible,
+.halo-home summary:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
+.halo-home .illustrative-label {
+  font-family: var(--font-mono);
+  font-size: 0.62rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--muted-foreground);
+}
+
+body:has(.halo-home) {
+  background: #ffffff !important;
+  /* Do not clip overflow — sticky header menus need to paint below the bar. */
+}

@@ -140,7 +140,7 @@ export const ENTERPRISE_BUILT_FOR = [
   { label: "GCC hiring", href: "/solutions/global-capability-centers" },
   { label: "Technical hiring", href: "/solutions/startups" },
   { label: "Executive hiring", href: "/solutions/executive-search" },
-  { label: "Global hiring", href: "/solutions" },
+  { label: "Global hiring", href: "/industries" },
   { label: "High volume hiring", href: "/solutions/enterprise-hiring" },
 ] as const;
 
@@ -217,7 +217,7 @@ export const BUILT_FOR_TEAMS = [
   { label: "Founders", href: "/solutions/startups" },
   { label: "Recruitment agencies", href: "/solutions/recruitment-firms" },
   { label: "Staffing firms", href: "/solutions/staffing-agencies" },
-  { label: "Global hiring teams", href: "/solutions" },
+  { label: "Global hiring teams", href: "/industries" },
 ] as const;
 
 export const ENTERPRISE_SUPPORTS = [

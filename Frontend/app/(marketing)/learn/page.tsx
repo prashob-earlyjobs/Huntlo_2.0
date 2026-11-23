@@ -45,7 +45,7 @@ const HUNTLO_APPLICATION: Record<string, { label: string; href: string }> = {
   "what-are-ai-recruiting-agents": { label: "AI Recruiting Agents", href: "/recruiting-agents" },
   "what-is-agentic-hiring": { label: "Agentic Hiring™", href: "/agentic-hiring" },
   "ai-hiring-orchestration": { label: "Hiring Intelligence Orchestration™", href: "/workflow-orchestration" },
-  "ai-hiring-vs-ats": { label: "Huntlo360 — AI Hiring OS", href: "/hiring-os" },
+  "ai-hiring-vs-ats": { label: "Huntlo360 - AI Hiring OS", href: "/hiring-os" },
 };
 
 const PRACTICE_LINKS = [
@@ -69,7 +69,7 @@ const PRACTICE_LINKS = [
   },
   {
     name: "AI Hiring Solutions",
-    href: "/solutions",
+    href: "/industries",
     icon: "domain",
     description: "How the workflows apply to staffing, RPO, GCCs and other teams.",
   },
@@ -123,7 +123,7 @@ export default function LearnHubPage() {
           faqPageJsonLd([...LEARN_HUB_FAQS]),
         ]}
       />
-      <div className="landing-page min-h-screen overflow-x-hidden bg-[#faf9ff] text-[#141b2b] selection:bg-[#0050cb] selection:text-[#c1cfff]">
+      <div className="landing-page min-h-screen bg-[#faf9ff] text-[#141b2b] selection:bg-[#0050cb] selection:text-[#c1cfff]">
         <LandingNav />
         <main>
           <section className="relative overflow-hidden bg-[#02050c] px-4 text-white md:px-8 lg:px-12">

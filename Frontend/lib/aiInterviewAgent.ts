@@ -5,10 +5,10 @@ export const AI_INTERVIEW_AGENT_PATH = "/ai-interview-agent";
 export const AI_INTERVIEW_AGENT_SEO = {
   title: "AI Interview Agent & Hiring Conversation Intelligence | Huntlo",
   description:
-    "Huntlo Hiring Conversation Intelligence helps recruiting teams create better hiring conversations — combining candidate context, hiring readiness, and interview intelligence so interviews create confidence, not complexity.",
+    "Huntlo Hiring Conversation Intelligence helps recruiting teams create better hiring conversations - combining candidate context, hiring readiness, and interview intelligence so interviews create confidence, not complexity.",
   ogTitle: "Great Hiring Isn't About Conducting Better Interviews. It's About Creating Better Hiring Conversations.",
   ogDescription:
-    "Great hiring decisions begin with better conversations. Interviews are conversations — not checkpoints. Explore Huntlo AI Interview Agents.",
+    "Great hiring decisions begin with better conversations. Interviews are conversations - not checkpoints. Explore Huntlo AI Interview Agents.",
 } as const;
 
 export function aiInterviewAgentMetadata() {
@@ -156,7 +156,7 @@ export const ENTERPRISE_BUILT_FOR = [
   { label: "Technical hiring", href: "/solutions/startups" },
   { label: "Recruitment agencies", href: "/solutions/recruitment-firms" },
   { label: "Staffing firms", href: "/solutions/staffing-agencies" },
-  { label: "Global hiring", href: "/solutions" },
+  { label: "Global hiring", href: "/industries" },
 ] as const;
 
 export const ENTERPRISE_SUPPORTS = [
@@ -172,7 +172,7 @@ export const AI_INTERVIEW_AGENT_FAQS = [
   {
     question: "What is an AI Interview Agent?",
     answer:
-      "An AI Interview Agent helps recruiting teams create better hiring conversations by understanding candidate context, hiring readiness, interview intelligence, and business alignment — so interviews create confidence, not complexity.",
+      "An AI Interview Agent helps recruiting teams create better hiring conversations by understanding candidate context, hiring readiness, interview intelligence, and business alignment - so interviews create confidence, not complexity.",
   },
   {
     question: "How is it different from interview management software?",
@@ -182,7 +182,7 @@ export const AI_INTERVIEW_AGENT_FAQS = [
   {
     question: "What is Hiring Conversation Intelligence?",
     answer:
-      "Hiring Conversation Intelligence continuously understands candidate context, business priorities, hiring readiness, interview intelligence, workflow intelligence, hiring confidence, and hiring outcomes — before interviews begin.",
+      "Hiring Conversation Intelligence continuously understands candidate context, business priorities, hiring readiness, interview intelligence, workflow intelligence, hiring confidence, and hiring outcomes - before interviews begin.",
   },
   {
     question: "How does Huntlo improve hiring decisions?",
@@ -197,7 +197,7 @@ export const AI_INTERVIEW_AGENT_FAQS = [
   {
     question: "How do AI Interview Agents improve candidate experiences?",
     answer:
-      "By helping conversations begin with context and readiness — so candidates experience meaningful, transparent, responsive interactions rather than transactional interview checkpoints.",
+      "By helping conversations begin with context and readiness - so candidates experience meaningful, transparent, responsive interactions rather than transactional interview checkpoints.",
   },
   {
     question: "Can Huntlo support technical hiring?",
@@ -207,12 +207,12 @@ export const AI_INTERVIEW_AGENT_FAQS = [
   {
     question: "Is this an AI interviewer avatar or interview bot?",
     answer:
-      "No. Huntlo positions AI Interview Agents as part of AI Hiring Intelligence Infrastructure — not AI avatars, interview bots, scorecards, or chatbot interfaces.",
+      "No. Huntlo positions AI Interview Agents as part of AI Hiring Intelligence Infrastructure - not AI avatars, interview bots, scorecards, or chatbot interfaces.",
   },
   {
     question: "What should teams ask instead of which interview should happen next?",
     answer:
-      "Ask which hiring conversation matters most right now — based on candidate context, readiness, business priorities, and hiring confidence.",
+      "Ask which hiring conversation matters most right now - based on candidate context, readiness, business priorities, and hiring confidence.",
   },
   {
     question: "Is Interview Intelligence becoming infrastructure?",
@@ -242,7 +242,7 @@ export const AI_INTERVIEW_AGENT_FAQS = [
   {
     question: "Is modern recruiting interview-driven or conversation-driven?",
     answer:
-      "Conversation-driven. Modern recruiting isn't becoming interview driven — it's becoming conversation and intelligence driven.",
+      "Conversation-driven. Modern recruiting isn't becoming interview driven - it's becoming conversation and intelligence driven.",
   },
   {
     question: "Will AI Interview Agents never stop learning?",
@@ -257,7 +257,7 @@ export const AI_INTERVIEW_AGENT_FAQS = [
   {
     question: "How do great hiring conversations create great experiences?",
     answer:
-      "Future teams optimize candidate experiences rather than interview workflows — continuously improving confidence, productivity, alignment, outcomes, experiences, and velocity.",
+      "Future teams optimize candidate experiences rather than interview workflows - continuously improving confidence, productivity, alignment, outcomes, experiences, and velocity.",
   },
   {
     question: "Can Huntlo support executive and GCC hiring?",

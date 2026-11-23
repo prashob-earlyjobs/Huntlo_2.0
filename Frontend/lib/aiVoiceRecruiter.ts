@@ -3,9 +3,9 @@ import { buildPageMetadata, OG_IMAGES } from "@/lib/siteMetadata";
 export const AI_VOICE_RECRUITER_PATH = "/ai-voice-recruiter";
 
 export const AI_VOICE_RECRUITER_SEO = {
-  title: "AI Voice Recruiter — Screen Every Candidate Before You Call | Huntlo",
+  title: "AI Voice Interview Screening Software | Huntlo",
   description:
-    "Huntlo AI Voice Recruiter calls candidates, asks role-specific questions, qualifies intent, and delivers interview-ready shortlists — before recruiters spend a minute on the phone.",
+    "Automate first-round screens: Huntlo’s AI Voice Recruiter runs structured phone screens, qualifies intent, and delivers transcripts so recruiters focus on hiring decisions.",
   ogTitle: "The AI Recruiter that screens every candidate before your team picks up the phone.",
   ogDescription:
     "Stop screening candidates manually. Huntlo calls, qualifies, and shortlists — then your recruiters interview.",
@@ -192,6 +192,109 @@ export const SECURITY = [
   "SOC2 Roadmap",
   "API Ready",
   "ATS Integrations",
+] as const;
+
+export const AI_VOICE_RECRUITER_SOFTWARE = {
+  name: "Huntlo AI Voice Recruiter",
+  description:
+    "AI Voice Recruiter calls candidates, asks role-specific questions, qualifies intent, and delivers interview-ready shortlists — before recruiters spend a minute on the phone.",
+  featureList: [
+    "Automated candidate screening calls",
+    "Human-like voice conversations",
+    "Multi-language support (Hindi, English, regional)",
+    "JD-aware interview questions",
+    "Automatic qualification & scoring",
+    "Structured recruiter summaries",
+    "24×7 availability",
+    "ATS integration ready",
+  ],
+} as const;
+
+export const AI_VOICE_BEFORE = [
+  "Manual dialing & voicemails",
+  "Repeating identical questions",
+  "Handwritten notes & memory",
+  "Inconsistent screening depth",
+  "Pipeline bottlenecked on recruiter time",
+  "No standardized candidate scores",
+] as const;
+
+export const AI_VOICE_AFTER = [
+  "AI calls candidates 24×7",
+  "JD-personalized questions every call",
+  "Structured summaries auto-generated",
+  "Consistent screening for every applicant",
+  "Recruiters review shortlists, not dial lists",
+  "AI scores skills, communication & fit",
+] as const;
+
+export const AI_VOICE_FEATURES = [
+  { title: "Natural Voice", description: "Conversational AI that sounds human, not robotic.", icon: "speech" as const },
+  { title: "Local Languages", description: "Screen in Hindi, English, and regional languages.", icon: "languages" as const },
+  { title: "24×7 Availability", description: "Candidates respond when convenient, not during business hours.", icon: "clock" as const },
+  { title: "Structured Outcomes", description: "Every call produces scores, tags, and recruiter-ready summaries.", icon: "checklist" as const },
+] as const;
+
+export const AI_VOICE_INTERNAL_LINKS = [
+  { href: "/sourcing", label: "AI Candidate Sourcing", note: "Find & enrich talent at scale" },
+  { href: "/candidate-engagement", label: "Candidate Engagement", note: "Multi-channel outreach automation" },
+  { href: "/demo", label: "Book a Demo", note: "See the voice recruiter in action" },
+] as const;
+
+export const AI_VOICE_RELATED = [
+  { href: "/ai-voice-candidate-screening", label: "AI Voice Candidate Screening", note: "Global capability page" },
+  { href: "/ai-voice-screening-high-volume-hiring", label: "AI Voice Screening for High Volume", note: "Volume-focused screening" },
+  { href: "/bulk-ai-calling-recruitment", label: "Bulk AI Calling for Recruitment", note: "Mass outreach campaigns" },
+  { href: "/ai-recruitment-calling-staffing-agencies", label: "AI Recruitment Calling for Staffing", note: "Agency-focused workflows" },
+] as const;
+
+export const AI_VOICE_SCORE_ROWS = [
+  { label: "Node.js", stars: 5, detail: "" },
+  { label: "Communication", stars: 5, detail: "" },
+  { label: "Relevant Experience", stars: 4, detail: "" },
+  { label: "Notice Period", stars: undefined, detail: "30 days" },
+  { label: "Salary Expectation", stars: undefined, detail: "₹18 LPA" },
+  { label: "Interview Ready", stars: undefined, detail: "Yes" },
+] as const;
+
+export const AI_VOICE_TRUST_METRICS = [
+  { value: "80%", label: "Less Manual Screening" },
+  { value: "5x", label: "Faster Candidate Qualification" },
+  { value: "24×7", label: "AI Recruiter Availability" },
+  { value: "100%", label: "Conversation Logs" },
+] as const;
+
+export const AI_VOICE_WORKFLOW = [
+  {
+    number: "01",
+    title: "Trigger",
+    subtitle: "Candidate replies",
+    description: "The workflow starts when a candidate responds to outreach or completes an application.",
+  },
+  {
+    number: "02",
+    title: "Context",
+    subtitle: "Role · history · consent",
+    description: "System gathers job details, candidate history, and consent status to personalize the interaction.",
+  },
+  {
+    number: "03",
+    title: "Action",
+    subtitle: "Next permitted step",
+    description: "AI determines and executes the appropriate next action based on context and rules.",
+  },
+  {
+    number: "04",
+    title: "Exception",
+    subtitle: "Escalate if needed",
+    description: "Complex cases or edge conditions are flagged and routed to human recruiters.",
+  },
+  {
+    number: "05",
+    title: "Review",
+    subtitle: "Recruiter visibility",
+    description: "All interactions are logged with full transparency for recruiter review and audit.",
+  },
 ] as const;
 
 export const AI_VOICE_RECRUITER_FAQS = [
