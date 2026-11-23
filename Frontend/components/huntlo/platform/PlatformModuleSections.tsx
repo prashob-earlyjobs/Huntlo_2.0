@@ -398,7 +398,7 @@ function HiringAgentsMockup() {
   return (
     <InteractiveConversationPanel
       title="Hiring journey"
-      subtitle="Five-stage pipeline · fictional screening context"
+      subtitle="Five-stage pipeline · screening context"
       tabs={HIRING_PIPELINE.map((item) => ({ id: item.label, label: item.label }))}
       activeTabId={activeLabel}
       onTabChange={setActiveLabel}
@@ -419,7 +419,7 @@ function HiringAgentsMockup() {
         value: item.a,
       }))}
       nextAction="Recruiter coordinates interview"
-      footer="Fictional fields · no customer records"
+      footer="Screening fields"
     />
   );
 }
@@ -582,7 +582,7 @@ function IndustriesOverviewMockup() {
   return (
     <InteractiveConversationPanel
       title="Industry workflows"
-      subtitle="Role-specific illustrative examples · no customer claims"
+      subtitle="Role-specific examples"
       tabs={INDUSTRY_CARDS.map((item) => ({ id: item.title, label: item.title }))}
       activeTabId={activeTitle}
       onTabChange={setActiveTitle}
@@ -606,7 +606,7 @@ function IndustriesOverviewMockup() {
       onNextAction={() => {
         window.location.href = card.href;
       }}
-      footer="Illustrative workflow · fictional examples · no fake customer records"
+      footer="Product workflow"
     />
   );
 }
@@ -647,8 +647,8 @@ const FEATURED_RESOURCES = [
   },
   {
     category: "Capabilities",
-    title: "Huntlo VoiceAI",
-    body: "Illustrative voice workflows for screening and follow-up.",
+    title: "Huntlo Voice AI",
+    body: "Voice workflows for screening and follow-up.",
     href: "/platform/voice-ai",
   },
   {
@@ -948,7 +948,7 @@ export function PlatformModuleProduct({ config }: ConfigProps) {
         <SectionHead
           eyebrow="Product experience"
           title="See the workflow, not just the promise"
-          copy="Every interface is original and clearly marked Illustrative workflow. No fake customer records, invented dashboards or false playback controls."
+          copy="See screening, interview and workforce workflows in the product interface."
         />
         {config.productVariant === "voice" ? (
           <VoiceProductExperience />

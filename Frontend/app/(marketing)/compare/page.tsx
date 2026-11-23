@@ -48,7 +48,7 @@ export default function CompareIndexPage() {
         <ComparisonHubPage />
       </main>
 
-      <LandingFooter />
+      <LandingFooter showAiAskBand />
     </div>
   );
 }

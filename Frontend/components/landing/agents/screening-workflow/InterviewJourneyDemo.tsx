@@ -27,8 +27,8 @@ export function InterviewJourneyDemo({
   journeyStages,
   actionQueue,
   title = "Interview coordination",
-  subtitle = "Illustrative conversation",
-  footer = "Illustrative workflow · no live call",
+  subtitle = "Conversation",
+  footer = "Workflow · no live call",
 }: InterviewJourneyDemoProps) {
   const stages = journeyStages.slice(0, 4);
   const lines = transcript.slice(0, 3);

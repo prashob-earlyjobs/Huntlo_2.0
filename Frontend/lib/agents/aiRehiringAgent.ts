@@ -69,7 +69,7 @@ export const AI_REHIRING_AGENT: ScreeningWorkflowConfig = {
       "Huntlo approaches alumni talent re-engagement as an operational journey rather than a call-volume target. The team defines what must be learned, which answers need attention and who owns the next step.",
     ],
     notice:
-      "This is an illustrative industry scenario, not a claim about a named Huntlo customer.",
+      "Industry scenario.",
   },
   how: {
     id: "workflow",
@@ -112,7 +112,7 @@ export const AI_REHIRING_AGENT: ScreeningWorkflowConfig = {
       "The team sees a time-stamped outcome rather than an unverified label.",
     ],
     notice:
-      "This practical scenario describes a possible workflow; it should not be represented as a live integration or client case study.",
+      "Product workflow.",
   },
   useful: {
     id: "useful-results",
@@ -171,7 +171,7 @@ export const AI_REHIRING_AGENT: ScreeningWorkflowConfig = {
   limitationNotice: {
     title: "Limitations and product truth",
     items: [
-      "Illustrative workflow only — not a live customer case study or audio demo.",
+      "Product workflow overview.",
       "No automatic employment decisions from unreviewed AI responses.",
       "Integrations, languages and automated actions require verification before deployment claims.",
       `Capability status: ${AI_REHIRING_AGENT_CAPABILITY_STATUS}. Indexation follows product approval.`,
@@ -308,7 +308,7 @@ export const AI_REHIRING_AGENT: ScreeningWorkflowConfig = {
   ],
   demoTitle: "Huntlo AI Rehiring Agent",
   demoSubtitle: "Previous vs current talent profile — silent simulation",
-  demoFooter: "Huntlo VoiceAI · Alumni talent re-engagement · Illustrative outcome",
+  demoFooter: "Huntlo Voice AI · Alumni talent re-engagement",
   aiAskTopic: "Huntlo AI Rehiring Agent voice workflow",
   aiAskPrompt: `What is the Huntlo AI Rehiring Agent on ${AI_REHIRING_AGENT_PATH} (https://www.huntlo.ai${AI_REHIRING_AGENT_PATH})? How does an alumni talent re-engagement voice workflow collect answers and route a human-reviewed next action?`,
 };

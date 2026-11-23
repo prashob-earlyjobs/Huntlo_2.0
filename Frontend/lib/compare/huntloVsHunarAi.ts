@@ -269,7 +269,7 @@ export const HUNTLO_VS_HUNAR_AI = {
   },
   productExperience: {
     h2: "See the Workflow Behind the Conversation.",
-    label: "Illustrative Huntlo workflow.",
+    label: "Huntlo workflow",
     candidate: "Ananya R.",
     role: "Customer Support Associate",
     conversationOutcome: "Availability confirmed.",

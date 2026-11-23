@@ -63,7 +63,7 @@ export const WHY_SECTION = {
     "Huntlo approaches general candidate qualification as an operational journey rather than a call-volume target. The team defines what must be learned, which answers need attention and who owns the next step.",
   ],
   notice:
-    "This is an illustrative industry scenario, not a claim about a named Huntlo customer.",
+    "Industry scenario.",
 } as const;
 
 export const HOW_SECTION = {
@@ -104,7 +104,7 @@ export const EXAMPLE_SECTION = {
     "The team sees a time-stamped outcome rather than an unverified label.",
   ],
   notice:
-    "This practical scenario describes a possible workflow; it should not be represented as a live integration or client case study.",
+    "Product workflow.",
 } as const;
 
 export const USEFUL_SECTION = {
@@ -159,7 +159,7 @@ export const INDUSTRY_CONTEXT = {
 export const LIMITATION_NOTICE = {
   title: "Limitations and product truth",
   items: [
-    "Illustrative workflow only — not a live customer case study or audio demo.",
+    "Product workflow overview.",
     "No automatic employment decisions from unreviewed AI responses.",
     "Integrations, languages and automated actions require verification before deployment claims.",
     `Capability status: ${AI_SCREENING_AGENT_WORKFLOW_CAPABILITY_STATUS}. Indexation follows product approval.`,
@@ -211,7 +211,7 @@ export const RELATED_LINKS = [
   },
 ] as const;
 
-/** Silent transcript simulation — illustrative, not live audio. */
+/** Silent transcript simulation. */
 export const SAMPLE_TRANSCRIPT = [
   {
     speaker: "Agent" as const,

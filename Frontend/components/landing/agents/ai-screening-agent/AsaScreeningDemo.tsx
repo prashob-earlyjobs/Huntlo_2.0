@@ -43,7 +43,7 @@ export function AsaScreeningDemo() {
   return (
     <InteractiveConversationPanel
       title="AI Screening Agent"
-      subtitle="Illustrative conversation"
+      subtitle="Conversation"
       tabs={tabs}
       activeTabId={activeTabId}
       onTabChange={setActiveTabId}

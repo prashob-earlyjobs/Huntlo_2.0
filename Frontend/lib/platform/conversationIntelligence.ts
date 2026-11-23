@@ -96,7 +96,7 @@ export const PLATFORM_CONVERSATION_INTELLIGENCE: PlatformModuleConfig = {
     {
       question: "Does the website include a live voice demo?",
       answer:
-        "No. The website shows illustrative visual workflows and offers a way to request a product demonstration.",
+        "No. The website shows visual workflows and offers a way to request a product demonstration.",
     },
     {
       question: "Can this replace a human recruiter or HR team?",
@@ -112,7 +112,7 @@ export const PLATFORM_CONVERSATION_INTELLIGENCE: PlatformModuleConfig = {
   finalCtaBody:
     "Share your conversation review, screening summary or follow-up workflow and discuss verified product capabilities with the Huntlo team.",
   related: [
-    { label: "Huntlo VoiceAI", href: "/platform/voice-ai" },
+    { label: "Huntlo Voice AI", href: "/platform/voice-ai" },
     { label: "AI Engagement", href: "/platform/ai-engagement" },
     { label: "AI Voice Recruiter", href: "/ai-voice-recruiter" },
   ],

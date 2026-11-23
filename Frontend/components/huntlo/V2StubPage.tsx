@@ -73,7 +73,7 @@ export function V2StubPage({ eyebrow, title, description, related = [] }: V2Stub
           </div>
         </section>
       </main>
-      <Footer />
+      <Footer showAiAskBand />
     </div>
   );
 }

@@ -49,7 +49,7 @@ export const HUNTLO_VS_HEYMILO: CompareVsCompetitorContent = {
     competitorVisual:
       "HeyMilo focuses on AI-assisted candidate screening and interviewing.",
     panelTitle: "After the screening call",
-    panelSubtitle: "Huntlo vs HeyMilo · illustrative comparison",
+    panelSubtitle: "Huntlo vs HeyMilo",
   },
   directAnswer: {
     h2: "What Is the Difference Between Huntlo and HeyMilo?",
@@ -246,7 +246,7 @@ export const HUNTLO_VS_HEYMILO: CompareVsCompetitorContent = {
   },
   productExperience: {
     h2: "See the Information Behind the Screening Conversation.",
-    label: "Illustrative screening review.",
+    label: "Screening review",
     candidate: "Rahul M.",
     role: "Customer Support Executive",
     conversationOutcome: "Experience and availability captured during AI screening.",

@@ -41,7 +41,7 @@ export const BPO_CUSTOMER_SUPPORT: IndustryLandingConfig = {
     illustration: {
       variant: "qualification-workspace",
       header: "Candidate Qualification Workspace",
-      candidate: "Ananya R. — fictional example",
+      candidate: "Ananya R.",
       location: "Noida Support Centre",
       role: "Customer Support Executive",
       owner: "Recruiter review",
@@ -51,7 +51,7 @@ export const BPO_CUSTOMER_SUPPORT: IndustryLandingConfig = {
           label: "Voice Engagement",
           status: "Conversation in progress",
           infoCards: [
-            { label: "Candidate profile", value: "Ananya R. · fictional example" },
+            { label: "Candidate profile", value: "Ananya R." },
             { label: "Role requirements", value: "Customer Support Executive" },
             { label: "Conversation summary", value: "Interest confirmed · experience discussed" },
             { label: "Shift preference", value: "Not yet confirmed" },
@@ -79,7 +79,7 @@ export const BPO_CUSTOMER_SUPPORT: IndustryLandingConfig = {
           label: "Recruiter Review",
           status: "Ready for recruiter review",
           infoCards: [
-            { label: "Candidate profile", value: "Ananya R. · fictional example" },
+            { label: "Candidate profile", value: "Ananya R." },
             { label: "Role requirements", value: "Customer Support Executive" },
             { label: "Conversation summary", value: "Structured responses ready for handoff" },
             { label: "Shift preference", value: "Rotational shifts acceptable" },
@@ -93,7 +93,7 @@ export const BPO_CUSTOMER_SUPPORT: IndustryLandingConfig = {
           label: "Follow-up",
           status: "Follow-up coordination open",
           infoCards: [
-            { label: "Candidate profile", value: "Ananya R. · fictional example" },
+            { label: "Candidate profile", value: "Ananya R." },
             { label: "Role requirements", value: "Customer Support Executive" },
             { label: "Conversation summary", value: "Qualification reviewed by recruiter" },
             { label: "Shift preference", value: "Rotational shifts acceptable" },
@@ -104,7 +104,7 @@ export const BPO_CUSTOMER_SUPPORT: IndustryLandingConfig = {
         },
       ],
       initialStageIndex: 1,
-      label: "Illustrative qualification workspace",
+      label: "Qualification workspace",
     },
   },
   aeo: {
@@ -222,7 +222,7 @@ export const BPO_CUSTOMER_SUPPORT: IndustryLandingConfig = {
       "Candidate shared two years of support experience, confirmed rotational shift flexibility and a 15-day joining window for recruiter review.",
     nextAction: "Recruiter assessment",
     fields: [
-      { label: "Candidate", value: "Ananya R. — fictional example" },
+      { label: "Candidate", value: "Ananya R." },
       { label: "Role", value: "Customer Support Executive" },
       { label: "Experience", value: "Two years" },
       { label: "Shift preference", value: "Rotational shifts acceptable" },
@@ -230,7 +230,7 @@ export const BPO_CUSTOMER_SUPPORT: IndustryLandingConfig = {
       { label: "Status", value: "Ready for recruiter review" },
     ],
     timeline: ["Voice Engagement", "Qualification", "Recruiter Review", "Follow-up"],
-    label: "Illustrative workspace · fictional example · no automated hiring decision",
+    label: "Workspace",
   },
   businessValue: {
     h2: "Help Recruiters Focus on the Conversations That Need Human Attention.",
@@ -292,7 +292,7 @@ export const BPO_CUSTOMER_SUPPORT: IndustryLandingConfig = {
   },
   contextualCta: {
     h2: "Organise high-volume support candidate conversations.",
-    body: "Explore AI candidate screening, Huntlo VoiceAI and conversation intelligence for BPO recruiting teams.",
+    body: "Explore AI candidate screening, Huntlo Voice AI and conversation intelligence for BPO recruiting teams.",
     primaryCta: "Explore AI Candidate Screening",
     secondaryCta: "Explore Candidate Qualification",
     secondaryCtaHref: "/solutions/candidate-qualification",
@@ -304,7 +304,7 @@ export const BPO_CUSTOMER_SUPPORT: IndustryLandingConfig = {
   },
   related: [
     { label: "Candidate Qualification", href: "/solutions/candidate-qualification" },
-    { label: "Huntlo VoiceAI", href: "/platform/voice-ai" },
+    { label: "Huntlo Voice AI", href: "/platform/voice-ai" },
     { label: "Conversation Intelligence", href: "/platform/conversation-intelligence" },
     { label: "AI Screening", href: "/solutions/ai-screening" },
     { label: "Retail & QSR", href: "/industries/retail-qsr" },

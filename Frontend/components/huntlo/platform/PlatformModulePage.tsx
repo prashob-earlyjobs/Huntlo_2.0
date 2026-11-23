@@ -35,7 +35,7 @@ export function PlatformModulePage({ config }: PlatformModulePageProps) {
         <PlatformModuleFaq config={config} />
         <PlatformModuleFinalCta config={config} />
       </main>
-      <Footer />
+      <Footer showAiAskBand />
     </div>
   );
 }

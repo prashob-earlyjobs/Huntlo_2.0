@@ -18,7 +18,7 @@ export function BeforeAfterSection({ reduceMotion = false }: BeforeAfterSectionP
             Before vs after
           </p>
           <h2 className="mt-4 font-[family-name:var(--font-epilogue)] text-[1.75rem] font-bold leading-tight tracking-tight text-[#141b2b] md:text-[2.35rem]">
-            Manual screening vs Huntlo VoiceAI
+            Manual screening vs Huntlo Voice AI
           </h2>
           <p className="mt-4 text-base leading-relaxed text-[#434654] md:text-lg">
             In India&apos;s hiring context, screening hundreds of applicants by hand is common.

@@ -48,7 +48,7 @@ export const HUNTLO_VS_HUMANLY: CompareVsCompetitorContent = {
     competitorVisual:
       "Humanly is positioned around conversational recruiting and AI-assisted candidate interactions.",
     panelTitle: "Conversation to workflow",
-    panelSubtitle: "Huntlo vs Humanly · illustrative comparison",
+    panelSubtitle: "Huntlo vs Humanly",
   },
   directAnswer: {
     h2: "How Does Huntlo Compare with Humanly?",
@@ -260,7 +260,7 @@ export const HUNTLO_VS_HUMANLY: CompareVsCompetitorContent = {
   },
   productExperience: {
     h2: "From Candidate Response to Recruiter Review.",
-    label: "Illustrative Huntlo review context.",
+    label: "Huntlo review context",
     candidate: "Priya S.",
     role: "Inside Sales Associate",
     conversationOutcome: "Relevant experience, preferred shift and joining availability captured.",

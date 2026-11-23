@@ -66,7 +66,7 @@ export type IndustryHeroIllustration = {
   initialStageIndex?: number;
   /** Optional owner label for plant / hub handoff views. */
   owner?: string;
-  /** Staffing hero — fictional candidate pipeline cards. */
+  /** Staffing hero — candidate pipeline cards. */
   candidates?: readonly IndustryHeroCandidateCard[];
   /** Optional visible pipeline labels (e.g. Database → Sourcing → Voice). */
   pipeline?: readonly string[];

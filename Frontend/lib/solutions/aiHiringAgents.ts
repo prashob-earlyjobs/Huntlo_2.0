@@ -110,7 +110,7 @@ export const AI_HIRING_AGENTS: PlatformModuleConfig = {
     {
       question: "Does the website include a live voice demo?",
       answer:
-        "No. The website shows illustrative visual workflows and offers a way to request a product demonstration.",
+        "No. The website shows visual workflows and offers a way to request a product demonstration.",
     },
     {
       question: "Can this replace a human recruiter or HR team?",
@@ -129,7 +129,7 @@ export const AI_HIRING_AGENTS: PlatformModuleConfig = {
     { label: "Candidate Qualification", href: "/solutions/candidate-qualification" },
     { label: "AI Hiring Agent", href: "/agents/ai-hiring-agent" },
     { label: "AI Screening Agent", href: AI_SCREENING_AGENT_WORKFLOW_PATH },
-    { label: "Huntlo VoiceAI", href: "/platform/voice-ai" },
+    { label: "Huntlo Voice AI", href: "/platform/voice-ai" },
   ],
   aboutName: "Huntlo AI Hiring Agents",
 };

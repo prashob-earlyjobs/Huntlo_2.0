@@ -21,9 +21,9 @@ export type V2NavItem = {
 
 export const V2_PLATFORM_ITEMS: V2NavItem[] = [
   {
-    label: "Huntlo VoiceAI",
+    label: "Huntlo Voice AI",
     href: "/platform/voice-ai",
-    desc: "Illustrative voice workflows for screening and follow-up",
+    desc: "Voice workflows for screening and follow-up",
   },
   {
     label: "AI Sourcing",
