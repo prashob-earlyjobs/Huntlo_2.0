@@ -8,7 +8,7 @@ import {
   PLATFORM_VOICE_SEO,
   platformVoiceMetadata,
   platformVoicePageUrl,
-} from "@/lib/platform/voice";
+} from "@/lib/platform/voice-ai";
 import { OG_IMAGES } from "@/lib/siteMetadata";
 
 export const metadata: Metadata = platformVoiceMetadata();

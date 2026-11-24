@@ -118,6 +118,7 @@ export default async function CompareSlugPage({ params }: PageProps) {
         aiAskPrompt={page.geoAskPrompt}
         aiAskTopic={page.geoAskTopic}
         aiAskLabelTemplate={page.geoAskLabelTemplate}
+        showAiAskBand
       />
     </div>
   );

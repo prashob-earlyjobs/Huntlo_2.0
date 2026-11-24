@@ -105,7 +105,7 @@ export const AI_RETENTION_AGENTS: PlatformModuleConfig = {
     {
       question: "Does the website include a live voice demo?",
       answer:
-        "No. The website shows illustrative visual workflows and offers a way to request a product demonstration.",
+        "No. The website shows visual workflows and offers a way to request a product demonstration.",
     },
     {
       question: "Can this replace a human recruiter or HR team?",

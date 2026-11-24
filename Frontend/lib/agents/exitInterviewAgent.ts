@@ -72,7 +72,7 @@ export const EXIT_INTERVIEW_AGENT: ScreeningWorkflowConfig = {
       "Huntlo approaches voluntary exit feedback as an operational journey rather than a call-volume target. The team defines what must be learned, which answers need attention and who owns the next step.",
     ],
     notice:
-      "This is an illustrative industry scenario, not a claim about a named Huntlo customer.",
+      "Industry scenario.",
   },
   how: {
     id: "workflow",
@@ -115,7 +115,7 @@ export const EXIT_INTERVIEW_AGENT: ScreeningWorkflowConfig = {
       "The team sees a time-stamped outcome rather than an unverified label.",
     ],
     notice:
-      "This practical scenario describes a possible workflow; it should not be represented as a live integration or client case study.",
+      "Product workflow.",
   },
   useful: {
     id: "useful-results",
@@ -174,7 +174,7 @@ export const EXIT_INTERVIEW_AGENT: ScreeningWorkflowConfig = {
   limitationNotice: {
     title: "Limitations and product truth",
     items: [
-      "Illustrative workflow only — not a live customer case study or audio demo.",
+      "Product workflow overview.",
       "No automatic employment decisions from unreviewed AI responses.",
       "Integrations, languages and automated actions require verification before deployment claims.",
       `Capability status: ${EXIT_INTERVIEW_AGENT_CAPABILITY_STATUS}. Indexation follows product approval.`,
@@ -300,7 +300,7 @@ export const EXIT_INTERVIEW_AGENT: ScreeningWorkflowConfig = {
   ],
   demoTitle: "Huntlo Exit Interview Agent",
   demoSubtitle: "Protected feedback themes — silent simulation",
-  demoFooter: "Huntlo Voice · Voluntary exit feedback · Illustrative outcome",
+  demoFooter: "Huntlo Voice AI · Voluntary exit feedback",
   aiAskTopic: "Huntlo Exit Interview Agent voice workflow",
   aiAskPrompt: `What is the Huntlo Exit Interview Agent on ${EXIT_INTERVIEW_AGENT_PATH} (https://www.huntlo.ai${EXIT_INTERVIEW_AGENT_PATH})? How does a voluntary exit feedback voice workflow collect answers and route a human-reviewed next action?`,
 };

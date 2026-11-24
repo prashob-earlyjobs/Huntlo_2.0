@@ -5,7 +5,7 @@ export type CompareRelatedLink = {
 
 /** Verified Huntlo platform and solution URLs for compare-page internal linking. */
 export const COMPARE_PAGE_RELATED_LINKS: readonly CompareRelatedLink[] = [
-  { label: "Huntlo Voice", href: "/platform/voice" },
+  { label: "Huntlo Voice AI", href: "/platform/voice-ai" },
   { label: "AI Sourcing", href: "/platform/ai-sourcing" },
   { label: "AI Engagement", href: "/platform/ai-engagement" },
   { label: "Conversation Intelligence", href: "/platform/conversation-intelligence" },
@@ -39,12 +39,68 @@ export type CompareVsCompetitorContent = {
     h1: string;
     paragraphs: readonly string[];
     primaryCta: string;
+    /** Verified Huntlo destination for the primary CTA. Defaults to home when omitted. */
+    primaryCtaHref?: string;
+    /** When true, primary CTA opens the demo booking flow instead of navigating. */
+    primaryCtaIsDemo?: boolean;
     secondaryCta: string;
+    /** When set, secondary CTA navigates to this Huntlo path instead of booking a demo. */
+    secondaryCtaHref?: string;
     microcopy: string;
     huntloVisual: readonly string[];
     competitorVisual: string;
     panelTitle: string;
     panelSubtitle: string;
+    /**
+     * Optional staffing-workflow hero illustration (e.g. Hire Vani comparison).
+     * When present, replaces the default approach-demo panel.
+     */
+    staffingWorkflow?: {
+      steps: readonly string[];
+      candidate: string;
+      role: string;
+      experience: string;
+      availability: string;
+      status: string;
+    };
+    /**
+     * Optional outcome-classification hero (e.g. VoiceGun comparison).
+     * When present, replaces the default approach-demo panel.
+     */
+    outcomeWorkflow?: {
+      steps: readonly string[];
+      outcomes: readonly string[];
+    };
+    /**
+     * Optional staffing ops dashboard hero (e.g. ConverzAI comparison).
+     * When present, replaces the default approach-demo panel.
+     */
+    opsDashboard?: {
+      panels: readonly { title: string; detail: string }[];
+    };
+    /**
+     * Optional phone-first frontline interview hero (e.g. Classet Joy).
+     * When present, replaces the default approach-demo panel.
+     */
+    frontlineInterview?: {
+      steps: readonly string[];
+      candidate: string;
+      role: string;
+      responses: readonly { label: string; value: string }[];
+      status: string;
+      nextAction: string;
+    };
+    /**
+     * Optional phone/video interview architecture hero (e.g. Tenzo AI).
+     * When present, replaces the default approach-demo panel.
+     */
+    interviewModes?: {
+      modes: readonly string[];
+      sharedSteps: readonly string[];
+      evidence: readonly { label: string; value: string }[];
+      nextAction: string;
+      note: string;
+    };
   };
   directAnswer: {
     h2: string;
@@ -85,6 +141,8 @@ export type CompareVsCompetitorContent = {
     eyebrow: string;
     h2: string;
     paragraphs: readonly string[];
+    /** Optional bullet list for buyer-fit evaluation (e.g. staffing-agency scenarios). */
+    bullets?: readonly string[];
   };
   productExperience: {
     h2: string;
@@ -95,6 +153,10 @@ export type CompareVsCompetitorContent = {
     qualificationContext: string;
     nextAction: string;
     fields?: readonly { label: string; value: string }[];
+    /** Optional supporting copy under the product-experience headline. */
+    paragraphs?: readonly string[];
+    /** Optional expandable conceptual transcript lines. */
+    transcript?: readonly { speaker: string; text: string }[];
   };
   buyerChecklist: {
     h2: string;
@@ -105,9 +167,13 @@ export type CompareVsCompetitorContent = {
     h2: string;
     body: string;
     cta: string;
+    secondaryCta?: string;
+    secondaryCtaHref?: string;
   };
   methodology: CompareMethodology;
   relatedLinks?: readonly CompareRelatedLink[];
+  /** Two related Huntlo-vs-* comparisons for internal linking. */
+  relatedComparisons?: readonly [CompareRelatedLink, CompareRelatedLink];
   aboutName: string;
   competitorShortName: string;
 };

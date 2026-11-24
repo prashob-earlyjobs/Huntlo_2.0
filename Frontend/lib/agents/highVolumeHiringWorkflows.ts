@@ -76,7 +76,7 @@ export const HIGH_VOLUME_HIRING_WORKFLOWS: ScreeningWorkflowConfig = {
       "Huntlo approaches bulk recruitment campaigns as an operational journey rather than a call-volume target. The team defines what must be learned, which answers need attention and who owns the next step.",
     ],
     notice:
-      "This is an illustrative industry scenario, not a claim about a named Huntlo customer.",
+      "Industry scenario.",
   },
   how: {
     id: "workflow",
@@ -119,7 +119,7 @@ export const HIGH_VOLUME_HIRING_WORKFLOWS: ScreeningWorkflowConfig = {
       "The team sees a time-stamped outcome rather than an unverified label.",
     ],
     notice:
-      "This practical scenario describes a possible workflow; it should not be represented as a live integration or client case study.",
+      "Product workflow.",
   },
   useful: {
     id: "useful-results",
@@ -178,7 +178,7 @@ export const HIGH_VOLUME_HIRING_WORKFLOWS: ScreeningWorkflowConfig = {
   limitationNotice: {
     title: "Limitations and product truth",
     items: [
-      "Illustrative workflow only — not a live customer case study or audio demo.",
+      "Product workflow overview.",
       "No automatic employment decisions from unreviewed AI responses.",
       "Integrations, languages and automated actions require verification before deployment claims.",
       `Capability status: ${HIGH_VOLUME_HIRING_WORKFLOWS_CAPABILITY_STATUS}. Indexation follows product approval.`,
@@ -304,7 +304,7 @@ export const HIGH_VOLUME_HIRING_WORKFLOWS: ScreeningWorkflowConfig = {
   ],
   demoTitle: "Huntlo High-Volume Hiring",
   demoSubtitle: "Interview journey + action queue — silent simulation",
-  demoFooter: "Huntlo Voice · Bulk recruitment · Illustrative outcome",
+  demoFooter: "Huntlo Voice AI · Bulk recruitment",
   aiAskTopic: "Huntlo High-Volume Hiring Workflows",
   aiAskPrompt: `What are Huntlo High-Volume Hiring Workflows on ${HIGH_VOLUME_HIRING_WORKFLOWS_PATH} (https://www.huntlo.ai${HIGH_VOLUME_HIRING_WORKFLOWS_PATH})? How does a bulk recruitment campaign voice workflow collect answers and route a human-reviewed next action?`,
 };

@@ -62,7 +62,7 @@ function ComparisonApproachDemo() {
   return (
     <InteractiveConversationPanel
       title="Voice AI approach"
-      subtitle="Huntlo vs Hunar.ai · illustrative comparison"
+      subtitle="Huntlo vs Hunar.ai"
       tabs={tabs}
       activeTabId={activeTabId}
       onTabChange={setActiveTabId}
@@ -88,7 +88,8 @@ function ComparisonApproachDemo() {
             }
           : undefined
       }
-      footer="Illustrative comparison · no competitor screenshots"
+      footer="Comparison"
+      badge={null}
       autoPlay
     />
   );
@@ -324,18 +325,25 @@ export function HuntloVsHunarAiWorkflowStory() {
     <section className="asa-section-y scroll-mt-24 bg-white" aria-labelledby="workflow-h2">
       <div className="asa-container-x">
         <Reveal>
-          <Eyebrow>Workflow story</Eyebrow>
-          <h2 id="workflow-h2" className="asa-font-display-tight asa-fs-h2 mt-5 max-w-3xl text-foreground">
-            {content.workflowStory.h2}
-          </h2>
-          <div className="mt-5 max-w-3xl space-y-4 text-base leading-relaxed text-muted-foreground md:text-lg">
-            {content.workflowStory.paragraphs.map((paragraph) => (
-              <p key={paragraph}>{paragraph}</p>
-            ))}
+          <div className="grid gap-8 lg:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)] lg:items-start lg:gap-14 xl:gap-16">
+            <div className="min-w-0">
+              <Eyebrow>Workflow story</Eyebrow>
+              <h2
+                id="workflow-h2"
+                className="asa-font-display-tight asa-fs-h2 mt-5 text-foreground"
+              >
+                {content.workflowStory.h2}
+              </h2>
+            </div>
+            <div className="min-w-0 space-y-4 text-base leading-relaxed text-muted-foreground md:text-lg lg:pt-10">
+              {content.workflowStory.paragraphs.map((paragraph) => (
+                <p key={paragraph}>{paragraph}</p>
+              ))}
+            </div>
           </div>
         </Reveal>
-        <Reveal delay={80} className="mt-14">
-          <ol className="grid gap-4 sm:grid-cols-5">
+        <Reveal delay={80} className="mt-12 lg:mt-14">
+          <ol className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
             {content.workflowStory.steps.map((step, index) => (
               <li
                 key={step}
@@ -440,6 +448,7 @@ export function HuntloVsHunarAiProductExperience() {
             ]}
             nextAction={experience.nextAction}
             footer={experience.label}
+            badge={null}
           />
         </Reveal>
       </div>

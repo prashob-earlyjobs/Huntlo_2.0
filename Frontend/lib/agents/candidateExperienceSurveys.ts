@@ -76,7 +76,7 @@ export const CANDIDATE_EXPERIENCE_SURVEYS: ScreeningWorkflowConfig = {
       "Huntlo approaches candidate journey feedback as an operational journey rather than a call-volume target. The team defines what must be learned, which answers need attention and who owns the next step.",
     ],
     notice:
-      "This is an illustrative industry scenario, not a claim about a named Huntlo customer.",
+      "Industry scenario.",
   },
   how: {
     id: "workflow",
@@ -119,7 +119,7 @@ export const CANDIDATE_EXPERIENCE_SURVEYS: ScreeningWorkflowConfig = {
       "The team sees a time-stamped outcome rather than an unverified label.",
     ],
     notice:
-      "This practical scenario describes a possible workflow; it should not be represented as a live integration or client case study.",
+      "Product workflow.",
   },
   useful: {
     id: "useful-results",
@@ -178,7 +178,7 @@ export const CANDIDATE_EXPERIENCE_SURVEYS: ScreeningWorkflowConfig = {
   limitationNotice: {
     title: "Limitations and product truth",
     items: [
-      "Illustrative workflow only — not a live customer case study or audio demo.",
+      "Product workflow overview.",
       "No automatic employment decisions from unreviewed AI responses.",
       "Integrations, languages and automated actions require verification before deployment claims.",
       `Capability status: ${CANDIDATE_EXPERIENCE_SURVEYS_CAPABILITY_STATUS}. Indexation follows product approval.`,
@@ -304,7 +304,7 @@ export const CANDIDATE_EXPERIENCE_SURVEYS: ScreeningWorkflowConfig = {
   ],
   demoTitle: "Huntlo Candidate Experience Surveys",
   demoSubtitle: "Protected feedback themes — silent simulation",
-  demoFooter: "Huntlo Voice · Candidate journey feedback · Illustrative outcome",
+  demoFooter: "Huntlo Voice AI · Candidate journey feedback",
   aiAskTopic: "Huntlo Candidate Experience Surveys voice workflow",
   aiAskPrompt: `What are Huntlo Candidate Experience Surveys on ${CANDIDATE_EXPERIENCE_SURVEYS_PATH} (https://www.huntlo.ai${CANDIDATE_EXPERIENCE_SURVEYS_PATH})? How does a candidate journey feedback voice workflow collect answers and route a human-reviewed next action?`,
 };

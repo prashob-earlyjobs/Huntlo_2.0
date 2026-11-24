@@ -76,7 +76,7 @@ export const SEASONAL_WORKFORCE_REHIRING: ScreeningWorkflowConfig = {
       "Huntlo approaches seasonal return campaigns as an operational journey rather than a call-volume target. The team defines what must be learned, which answers need attention and who owns the next step.",
     ],
     notice:
-      "This is an illustrative industry scenario, not a claim about a named Huntlo customer.",
+      "Industry scenario.",
   },
   how: {
     id: "workflow",
@@ -119,7 +119,7 @@ export const SEASONAL_WORKFORCE_REHIRING: ScreeningWorkflowConfig = {
       "The team sees a time-stamped outcome rather than an unverified label.",
     ],
     notice:
-      "This practical scenario describes a possible workflow; it should not be represented as a live integration or client case study.",
+      "Product workflow.",
   },
   useful: {
     id: "useful-results",
@@ -178,7 +178,7 @@ export const SEASONAL_WORKFORCE_REHIRING: ScreeningWorkflowConfig = {
   limitationNotice: {
     title: "Limitations and product truth",
     items: [
-      "Illustrative workflow only — not a live customer case study or audio demo.",
+      "Product workflow overview.",
       "No automatic employment decisions from unreviewed AI responses.",
       "Integrations, languages and automated actions require verification before deployment claims.",
       `Capability status: ${SEASONAL_WORKFORCE_REHIRING_CAPABILITY_STATUS}. Indexation follows product approval.`,
@@ -316,7 +316,7 @@ export const SEASONAL_WORKFORCE_REHIRING: ScreeningWorkflowConfig = {
   demoTitle: "Huntlo Seasonal Workforce Rehiring",
   demoSubtitle: "Previous vs current talent profile — silent simulation",
   demoFooter:
-    "Huntlo Voice · Seasonal return campaigns · Illustrative outcome",
+    "Huntlo Voice AI · Seasonal return campaigns",
   aiAskTopic: "Huntlo Seasonal Workforce Rehiring voice workflow",
   aiAskPrompt: `What is Huntlo Seasonal Workforce Rehiring on ${SEASONAL_WORKFORCE_REHIRING_PATH} (https://www.huntlo.ai${SEASONAL_WORKFORCE_REHIRING_PATH})? How does a seasonal return campaign voice workflow collect answers and route a human-reviewed next action?`,
 };

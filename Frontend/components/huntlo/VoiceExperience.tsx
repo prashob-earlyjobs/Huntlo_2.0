@@ -41,7 +41,7 @@ export function VoiceExperience() {
   return (
     <section id="voice" className="section-y border-t border-border bg-secondary">
       <div className="container-x">
-        <SectionHead eyebrow="Experience Huntlo Voice" title="Hear the conversation. See the outcome." copy="A useful AI conversation doesn't end when the call disconnects. It gives your team the context and next step to move forward." />
+        <SectionHead eyebrow="Experience Huntlo Voice AI" title="Hear the conversation. See the outcome." copy="A useful AI conversation doesn't end when the call disconnects. It gives your team the context and next step to move forward." />
         <Reveal className="mt-14 grid gap-4 lg:grid-cols-[280px_1fr]">
           <div className="flex gap-2 overflow-x-auto lg:flex-col" role="tablist">
             {demos.map((x, j) => (
@@ -72,7 +72,6 @@ export function VoiceExperience() {
                   </li>
                 ))}
               </ul>
-              <Mono className="mt-6 block text-[0.6rem]">Simulated conversation · no audio</Mono>
             </div>
             <div className="border-t border-border bg-navy p-5 text-navy-foreground sm:p-7 md:border-l md:border-t-0">
               <span className="eyebrow text-navy-muted">Outcome</span>

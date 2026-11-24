@@ -35,7 +35,7 @@ export function TalentProfileDemo({
   actionQueue,
   title = "Talent refresh",
   subtitle = "Previous context · current update",
-  footer = "Illustrative workflow · no live call",
+  footer,
 }: TalentProfileDemoProps) {
   const lines = transcript.slice(0, 2);
   const prev = previousProfile.slice(0, 3);

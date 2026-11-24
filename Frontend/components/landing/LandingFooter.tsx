@@ -21,8 +21,9 @@ const FOOTER_SOLUTIONS_LINKS = [
 
 const FOOTER_LINK_HREFS: Record<string, string> = {
   About: "/about",
-  Careers: "https://www.earlyjobs.ai/jobs",
+  Careers: "https://www.linkedin.com/company/huntlo-ai",
   Contact: "/contact",
+  Sitemap: "/sitemap.xml",
   ...Object.fromEntries(COMPARISON_FOOTER_LINKS.map((item) => [item.label, item.href])),
   ...Object.fromEntries(V2_PLATFORM_ITEMS.map((item) => [item.label, item.href])),
   ...Object.fromEntries(FOOTER_SOLUTIONS_LINKS.map((item) => [item.label, item.href])),
@@ -72,33 +73,28 @@ const FOOTER_SOCIAL_LINKS = [
 
 type FooterColumn = {
   title: string;
-  titleHref?: string;
   links: string[];
 };
 
 const FOOTER_COLUMNS: FooterColumn[] = [
   {
     title: "Platform",
-    titleHref: "/platform",
     links: V2_PLATFORM_ITEMS.map((item) => item.label),
   },
   {
     title: "Solutions",
-    titleHref: "/solutions/ai-hiring-agents",
     links: FOOTER_SOLUTIONS_LINKS.map((item) => item.label),
   },
   {
     title: "Industries",
-    titleHref: "/industries",
     links: INDUSTRY_FOOTER_LINKS.map((item) => item.label),
   },
   {
     title: "Company",
-    links: ["About", "Careers", "Contact"],
+    links: ["About", "Careers", "Contact", "Sitemap"],
   },
   {
     title: "Comparison",
-    titleHref: "/compare",
     links: COMPARISON_FOOTER_LINKS.map((item) => item.label),
   },
 ];
@@ -108,7 +104,7 @@ export function LandingFooter({
   aiAskTopic,
   aiAskLabelTemplate,
   platformPartners,
-  /** Dark AI-ask + social band — homepage only. */
+  /** Dark AI-ask + social band (homepage + V2 platform/solutions/industries/compare). */
   showAiAskBand = false,
 }: {
   /** Page-specific GEO prompt for AI platform deep links. */
@@ -208,16 +204,7 @@ export function LandingFooter({
           {FOOTER_COLUMNS.map((col) => (
             <div key={col.title} className="min-w-0">
               <h4 className="text-xs font-bold uppercase tracking-widest text-[#141b2b]">
-                {col.titleHref ? (
-                  <Link
-                    href={col.titleHref}
-                    className="transition-colors hover:text-[#0050cb]"
-                  >
-                    {col.title}
-                  </Link>
-                ) : (
-                  col.title
-                )}
+                {col.title}
               </h4>
               <ul className="mt-3 space-y-2.5">
                 {col.links.map((label) => {

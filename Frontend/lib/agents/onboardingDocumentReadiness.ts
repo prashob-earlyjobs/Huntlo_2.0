@@ -72,7 +72,7 @@ export const ONBOARDING_DOCUMENT_READINESS: ScreeningWorkflowConfig = {
       "Huntlo approaches onboarding checklist reminders as an operational journey rather than a call-volume target. The team defines what must be learned, which answers need attention and who owns the next step.",
     ],
     notice:
-      "This is an illustrative industry scenario, not a claim about a named Huntlo customer.",
+      "Industry scenario.",
   },
   how: {
     id: "workflow",
@@ -115,7 +115,7 @@ export const ONBOARDING_DOCUMENT_READINESS: ScreeningWorkflowConfig = {
       "The team sees a time-stamped outcome rather than an unverified label.",
     ],
     notice:
-      "This practical scenario describes a possible workflow; it should not be represented as a live integration or client case study.",
+      "Product workflow.",
   },
   useful: {
     id: "useful-results",
@@ -174,7 +174,7 @@ export const ONBOARDING_DOCUMENT_READINESS: ScreeningWorkflowConfig = {
   limitationNotice: {
     title: "Limitations and product truth",
     items: [
-      "Illustrative workflow only — not a live customer case study or audio demo.",
+      "Product workflow overview.",
       "No automatic employment decisions from unreviewed AI responses.",
       "Integrations, languages and automated actions require verification before deployment claims.",
       `Capability status: ${ONBOARDING_DOCUMENT_READINESS_CAPABILITY_STATUS}. Indexation follows product approval.`,
@@ -312,7 +312,7 @@ export const ONBOARDING_DOCUMENT_READINESS: ScreeningWorkflowConfig = {
   demoTitle: "Huntlo Onboarding Document Readiness",
   demoSubtitle: "Offer-to-day-one timeline — silent simulation",
   demoFooter:
-    "Huntlo Voice · Onboarding checklist reminders · Illustrative outcome",
+    "Huntlo Voice AI · Onboarding checklist reminders",
   aiAskTopic: "Huntlo Onboarding Document Readiness voice workflow",
   aiAskPrompt: `What is Huntlo Onboarding Document Readiness on ${ONBOARDING_DOCUMENT_READINESS_PATH} (https://www.huntlo.ai${ONBOARDING_DOCUMENT_READINESS_PATH})? How does an onboarding checklist reminders voice workflow collect answers and route a human-reviewed next action?`,
 };

@@ -31,12 +31,7 @@ export function homeOrganizationSoftwareGraphJsonLd() {
           "@type": "Person",
           name: "Saurav Kumar",
         },
-        parentOrganization: {
-          "@type": "Organization",
-          name: "EarlyJobs AI",
-          url: "https://www.earlyjobs.ai",
-        },
-        sameAs: ["https://www.linkedin.com/company/earlyjobs"],
+        sameAs: ["https://www.linkedin.com/company/huntlo-ai"],
         knowsAbout: [
           "Agentic AI",
           "AI Recruiting",
@@ -91,15 +86,11 @@ export function organizationJsonLd() {
     logo: `${SITE_URL}/huntlologo.png`,
     description:
       "Huntlo is agentic AI recruiting infrastructure that autonomously sources candidates, runs multi-channel outreach, conducts AI voice screening, and schedules interviews for modern hiring teams.",
-    sameAs: ["https://www.linkedin.com/company/huntlo"],
+    sameAs: ["https://www.linkedin.com/company/huntlo-ai"],
     contactPoint: {
       "@type": "ContactPoint",
       contactType: "sales",
       url: "https://calendly.com/huntlo-info/15min",
-    },
-    parentOrganization: {
-      "@type": "Organization",
-      name: "EarlyJobs",
     },
   };
 }

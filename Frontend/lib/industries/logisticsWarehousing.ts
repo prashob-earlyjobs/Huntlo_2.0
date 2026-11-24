@@ -44,7 +44,7 @@ export const LOGISTICS_WAREHOUSING: IndustryLandingConfig = {
     illustration: {
       variant: "hub-readiness",
       header: "Hub Readiness Board",
-      candidate: "Aarav Sharma — fictional example",
+      candidate: "Aarav Sharma",
       location: "Bengaluru Distribution Hub",
       role: "Warehouse Associate",
       owner: "Ops recruiter",
@@ -108,7 +108,7 @@ export const LOGISTICS_WAREHOUSING: IndustryLandingConfig = {
         },
       ],
       initialStageIndex: 1,
-      label: "Illustrative workflow",
+      label: "Workflow",
     },
   },
   aeo: {
@@ -223,7 +223,7 @@ export const LOGISTICS_WAREHOUSING: IndustryLandingConfig = {
       "Candidate has expressed interest and provided shift availability.",
     nextAction: "HR to confirm reporting instructions.",
     fields: [
-      { label: "Worker", value: "Aarav Sharma — fictional example" },
+      { label: "Worker", value: "Aarav Sharma" },
       { label: "Role", value: "Warehouse Associate" },
       { label: "Location", value: "Bengaluru" },
       { label: "Shift", value: "Evening shift preferred" },
@@ -235,7 +235,7 @@ export const LOGISTICS_WAREHOUSING: IndustryLandingConfig = {
       "Joining Confirmation",
       "Hub Coordination",
     ],
-    label: "Illustrative workflow · fictional example",
+    label: "Workflow",
   },
   businessValue: {
     h2: "Help Your Workforce Teams Spend Less Time Chasing Information.",
@@ -313,7 +313,7 @@ export const LOGISTICS_WAREHOUSING: IndustryLandingConfig = {
     { label: "HR Coordination", href: "/solutions/hr-coordination" },
     { label: "Employee Check-ins", href: "/solutions/employee-check-ins" },
     { label: "AI Hiring Agents", href: "/solutions/ai-hiring-agents" },
-    { label: "Huntlo Voice", href: "/platform/voice" },
+    { label: "Huntlo Voice AI", href: "/platform/voice-ai" },
     { label: "E-Commerce & Quick Commerce", href: "/industries/ecommerce-quick-commerce" },
   ],
   aiAskPrompt: `What is Huntlo AI voice hiring for logistics and warehousing on ${LOGISTICS_WAREHOUSING_PATH} (https://www.huntlo.ai${LOGISTICS_WAREHOUSING_PATH})? How do voice-powered workflows support warehouse screening, joining coordination and HR follow-up?`,

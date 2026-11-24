@@ -166,7 +166,7 @@ function StagePills({
 function FooterNote({ label }: { label: string }) {
   return (
     <p className="border-t border-border px-4 py-3 text-xs text-muted-foreground sm:px-5">
-      {label} · fictional data · not a customer record
+      {label}
     </p>
   );
 }
@@ -970,7 +970,7 @@ function CandidateEngagementWorkflow({ data }: HeroProps) {
       <div className="grid gap-4 p-4 sm:p-5 lg:grid-cols-[0.95fr_1.05fr]">
         <div className="space-y-3">
           <p className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
-            Illustrative candidates
+            Candidates
           </p>
           {candidates.map((candidate, index) => {
             const highlighted = index === 0 && activeIndex >= 3;

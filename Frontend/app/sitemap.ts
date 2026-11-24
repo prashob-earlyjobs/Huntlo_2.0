@@ -11,8 +11,13 @@ import { listSolutionPages } from "@/lib/solutionPages";
 import { TOOL_PAGES, TOOLS_PATH, toolPath } from "@/lib/toolsPages";
 
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://www.huntlo.ai";
+const allowIndexing = process.env.NEXT_PUBLIC_ALLOW_INDEXING !== "false";
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
+  if (!allowIndexing) {
+    return [];
+  }
+
   const blogPosts = await fetchBlogSitemapEntries();
 
   const staticRoutes: MetadataRoute.Sitemap = [
@@ -29,7 +34,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     { url: `${SITE_URL}/candidate-pool`, lastModified: new Date(), changeFrequency: "monthly", priority: 0.88 },
     { url: `${SITE_URL}/integrations`, lastModified: new Date(), changeFrequency: "monthly", priority: 0.88 },
     { url: `${SITE_URL}/platform`, lastModified: new Date(), changeFrequency: "monthly", priority: 0.9 },
-    { url: `${SITE_URL}/platform/voice`, lastModified: new Date(), changeFrequency: "monthly", priority: 0.9 },
+    { url: `${SITE_URL}/platform/voice-ai`, lastModified: new Date(), changeFrequency: "monthly", priority: 0.9 },
     {
       url: `${SITE_URL}/platform/ai-sourcing`,
       lastModified: new Date(),
@@ -554,6 +559,54 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     },
     {
       url: `${SITE_URL}/solutions/hr-coordination`,
+      lastModified: new Date(),
+      changeFrequency: "monthly",
+      priority: 0.88,
+    },
+    {
+      url: `${SITE_URL}/solutions/candidate-sourcing`,
+      lastModified: new Date(),
+      changeFrequency: "monthly",
+      priority: 0.88,
+    },
+    {
+      url: `${SITE_URL}/solutions/ai-screening`,
+      lastModified: new Date(),
+      changeFrequency: "monthly",
+      priority: 0.88,
+    },
+    {
+      url: `${SITE_URL}/solutions/interview-coordination`,
+      lastModified: new Date(),
+      changeFrequency: "monthly",
+      priority: 0.88,
+    },
+    {
+      url: `${SITE_URL}/solutions/joining-confirmation`,
+      lastModified: new Date(),
+      changeFrequency: "monthly",
+      priority: 0.88,
+    },
+    {
+      url: `${SITE_URL}/solutions/pre-joining-follow-ups`,
+      lastModified: new Date(),
+      changeFrequency: "monthly",
+      priority: 0.88,
+    },
+    {
+      url: `${SITE_URL}/solutions/day-1-readiness`,
+      lastModified: new Date(),
+      changeFrequency: "monthly",
+      priority: 0.88,
+    },
+    {
+      url: `${SITE_URL}/solutions/employee-check-ins`,
+      lastModified: new Date(),
+      changeFrequency: "monthly",
+      priority: 0.88,
+    },
+    {
+      url: `${SITE_URL}/solutions/workforce-feedback`,
       lastModified: new Date(),
       changeFrequency: "monthly",
       priority: 0.88,

@@ -125,7 +125,6 @@ function VoiceWorkspace({
       }))}
       fields={scenario.outcomes.map(([label, value]) => ({ label, value }))}
       nextAction={scenario.next}
-      footer="Visual conversation · no audio media"
     />
   );
 }
@@ -150,7 +149,6 @@ function VoiceProductExperience({ compact = false }: { compact?: boolean }) {
         }))}
         fields={scenario.outcomes.map(([label, value]) => ({ label, value }))}
         nextAction={scenario.next}
-        footer="Visual conversation · no audio media"
       />
     );
   }
@@ -236,10 +234,10 @@ const ENGAGEMENT_CHANNELS = [
   },
   {
     id: "voice",
-    label: "Voice-labelled",
+    label: "Voice",
     icon: Phone,
-    status: "Label only",
-    detail: "No playable call · visual status",
+    status: "Logged",
+    detail: "Voice outreach completed",
   },
 ] as const;
 
@@ -289,7 +287,6 @@ function SourcingSearchMockup() {
         })),
       ]}
       nextAction="Recruiter starts outreach"
-      footer="Evidence only · no match percentages"
     />
   );
 }
@@ -309,7 +306,7 @@ function EngagementWorkflowMockup() {
   return (
     <InteractiveConversationPanel
       title="Candidate engagement"
-      subtitle="Connected channels · email, WhatsApp, voice-labelled"
+      subtitle="Connected channels · email, WhatsApp, voice"
       tabs={ENGAGEMENT_CHANNELS.map((item) => ({ id: item.id, label: item.label }))}
       activeTabId={activeId}
       onTabChange={setActiveId}
@@ -332,7 +329,6 @@ function EngagementWorkflowMockup() {
         { label: "Owner", value: "Recruiter follow-up" },
       ]}
       nextAction="Recruiter confirms interview slot"
-      footer="No playable calls · status labels only"
     />
   );
 }
@@ -366,7 +362,6 @@ function ConversationIntelligenceMockup() {
         value: field.value,
       }))}
       nextAction="Recruiter confirms fields"
-      footer="Source text · no audio media"
     />
   );
 }
@@ -398,7 +393,7 @@ function HiringAgentsMockup() {
   return (
     <InteractiveConversationPanel
       title="Hiring journey"
-      subtitle="Five-stage pipeline · fictional screening context"
+      subtitle="Five-stage pipeline · screening context"
       tabs={HIRING_PIPELINE.map((item) => ({ id: item.label, label: item.label }))}
       activeTabId={activeLabel}
       onTabChange={setActiveLabel}
@@ -419,7 +414,6 @@ function HiringAgentsMockup() {
         value: item.a,
       }))}
       nextAction="Recruiter coordinates interview"
-      footer="Fictional fields · no customer records"
     />
   );
 }
@@ -465,7 +459,6 @@ function OnboardingAgentsMockup() {
         value: item.status,
       }))}
       nextAction="HR follows up before Day 1"
-      footer="Employee question · needs HR attention"
     />
   );
 }
@@ -496,7 +489,7 @@ function RetentionAgentsMockup() {
   return (
     <InteractiveConversationPanel
       title="Employee check-in"
-      subtitle="Protected feedback · human review · no prediction labels"
+      subtitle="Protected feedback · human review"
       tabs={RETENTION_FEEDBACK.map((item) => ({ id: item.theme, label: item.theme }))}
       activeTabId={activeTheme}
       onTabChange={setActiveTheme}
@@ -519,7 +512,6 @@ function RetentionAgentsMockup() {
         { label: "Decision", value: "Human follow-up" },
       ]}
       nextAction="HR reviewer schedules follow-up"
-      footer="No mood score or resignation prediction is shown"
     />
   );
 }
@@ -582,7 +574,7 @@ function IndustriesOverviewMockup() {
   return (
     <InteractiveConversationPanel
       title="Industry workflows"
-      subtitle="Role-specific illustrative examples · no customer claims"
+      subtitle="Role-specific examples"
       tabs={INDUSTRY_CARDS.map((item) => ({ id: item.title, label: item.title }))}
       activeTabId={activeTitle}
       onTabChange={setActiveTitle}
@@ -606,7 +598,6 @@ function IndustriesOverviewMockup() {
       onNextAction={() => {
         window.location.href = card.href;
       }}
-      footer="Illustrative workflow · fictional examples · no fake customer records"
     />
   );
 }
@@ -614,7 +605,7 @@ function IndustriesOverviewMockup() {
 const RESOURCE_CATEGORIES = [
   { label: "Blog", href: "/blog" },
   { label: "FAQs", href: "/faqs" },
-  { label: "Capabilities", href: "/platform/voice" },
+  { label: "Capabilities", href: "/platform/voice-ai" },
   { label: "Comparisons", href: "/compare" },
   { label: "Learn", href: "/learn" },
   { label: "Docs", href: "/docs" },
@@ -647,9 +638,9 @@ const FEATURED_RESOURCES = [
   },
   {
     category: "Capabilities",
-    title: "Huntlo Voice",
-    body: "Illustrative voice workflows for screening and follow-up.",
-    href: "/platform/voice",
+    title: "Huntlo Voice AI",
+    body: "Voice workflows for screening and follow-up.",
+    href: "/platform/voice-ai",
   },
   {
     category: "Tools",
@@ -701,7 +692,6 @@ function ResourcesHubMockup() {
       onNextAction={() => {
         window.location.href = featured.href;
       }}
-      footer="Search omitted until a working search experience ships"
     />
   );
 }
@@ -720,77 +710,108 @@ function ProductExperienceMockup({ variant }: { variant: PlatformModuleConfig["p
 
 type ConfigProps = { config: PlatformModuleConfig };
 
-export function PlatformModuleHero({ config }: ConfigProps) {
-  return (
-    <section className="container-x pt-10 md:pt-12 lg:pt-14" aria-labelledby="module-h1">
-      <nav aria-label="Breadcrumb" className="mb-5 text-sm text-muted-foreground md:mb-6 lg:mb-7">
-        <ol className="flex flex-wrap items-center gap-2">
-          {config.breadcrumbs.map((item, index) => {
-            const isCurrent = index === config.breadcrumbs.length - 1;
-            return (
-              <li key={item.name} className="flex items-center gap-2">
-                {index > 0 ? <span aria-hidden>/</span> : null}
-                {isCurrent ? (
-                  <span className="text-foreground" aria-current="page">
-                    {item.name}
-                  </span>
-                ) : (
-                  <a href={item.href} className="hover:text-primary">
-                    {item.name}
-                  </a>
-                )}
-              </li>
-            );
-          })}
-        </ol>
-      </nav>
+/** Same smooth blue hero wash as AI Screening — only these module pages. */
+const HERO_BLUE_FLOW_PATHS = new Set([
+  "/platform/voice-ai",
+  "/platform/ai-sourcing",
+  "/platform/ai-engagement",
+  "/platform/conversation-intelligence",
+  "/solutions/candidate-sourcing",
+  "/solutions/candidate-qualification",
+  "/solutions/hr-coordination",
+  "/solutions/concern-identification",
+  "/solutions/hr-follow-ups",
+  "/solutions/ai-hiring-agents",
+  "/solutions/ai-onboarding-agents",
+  "/solutions/ai-retention-agents",
+]);
 
-      <div className="grid min-w-0 items-start gap-10 lg:grid-cols-[1fr_1.15fr] lg:gap-12">
-        <div className="animate-rise min-w-0">
-          <Eyebrow>{config.eyebrow}</Eyebrow>
-          <h1
-            id="module-h1"
-            className="font-display-tight mt-4 text-[clamp(2.35rem,1.45rem+3vw,3.75rem)] text-foreground md:mt-3"
-          >
-            {config.h1}
-          </h1>
-          <p className="mt-5 max-w-xl text-base leading-relaxed text-muted-foreground md:text-lg">
-            {config.heroBody}
-          </p>
-          <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:items-center">
-            <a
-              href={V2_BOOK_DEMO_PATH}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="group inline-flex min-h-11 w-fit items-center gap-3 rounded-full bg-primary py-1.5 pl-6 pr-1.5 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary-deep"
-            >
-              Book a Demo
-              <span className="grid h-9 w-9 place-items-center rounded-full bg-primary-foreground text-primary transition-transform group-hover:translate-x-0.5">
-                <ArrowRight className="h-4 w-4" />
-              </span>
-            </a>
-            <a
-              href="#how-it-works"
-              className="inline-flex min-h-11 w-fit items-center rounded-full border border-border px-6 py-3 text-sm font-medium text-foreground transition-colors hover:bg-muted"
-            >
-              Explore Workflow
-            </a>
-          </div>
-          <ul className="mt-8 flex flex-wrap gap-x-6 gap-y-2 text-sm text-muted-foreground">
-            {config.heroPills.map(({ icon, label }) => {
-              const Icon = PLATFORM_ICONS[icon];
+export function PlatformModuleHero({ config }: ConfigProps) {
+  const showBlueFlow = HERO_BLUE_FLOW_PATHS.has(config.path);
+
+  return (
+    <section
+      className={cn(showBlueFlow && "relative overflow-hidden")}
+      aria-labelledby="module-h1"
+    >
+      {showBlueFlow ? (
+        <>
+          <div className="bg-grid pointer-events-none absolute inset-0 opacity-60" aria-hidden />
+          <Flow className="bottom-0 h-[55%] opacity-90" />
+        </>
+      ) : null}
+      <div className="container-x relative pt-10 md:pt-12 lg:pt-14">
+        <nav aria-label="Breadcrumb" className="mb-5 text-sm text-muted-foreground md:mb-6 lg:mb-7">
+          <ol className="flex flex-wrap items-center gap-2">
+            {config.breadcrumbs.map((item, index) => {
+              const isCurrent = index === config.breadcrumbs.length - 1;
               return (
-                <li key={label} className="inline-flex items-center gap-2">
-                  <Icon className="h-4 w-4 text-primary" aria-hidden />
-                  {label}
+                <li key={item.name} className="flex items-center gap-2">
+                  {index > 0 ? <span aria-hidden>/</span> : null}
+                  {isCurrent ? (
+                    <span className="text-foreground" aria-current="page">
+                      {item.name}
+                    </span>
+                  ) : (
+                    <a href={item.href} className="hover:text-primary">
+                      {item.name}
+                    </a>
+                  )}
                 </li>
               );
             })}
-          </ul>
-        </div>
+          </ol>
+        </nav>
 
-        <div className="animate-rise min-w-0 w-full max-w-full" style={{ animationDelay: "80ms" }}>
-          <ProductExperienceMockup variant={config.productVariant} />
+        <div className="grid min-w-0 items-start gap-10 lg:grid-cols-[1fr_1.15fr] lg:gap-12">
+          <div className="animate-rise min-w-0">
+            <Eyebrow>{config.eyebrow}</Eyebrow>
+            <h1
+              id="module-h1"
+              className="font-display-tight mt-4 text-[clamp(2.35rem,1.45rem+3vw,3.75rem)] text-foreground md:mt-3"
+            >
+              {config.h1}
+            </h1>
+            <p className="mt-5 max-w-xl text-base leading-relaxed text-muted-foreground md:text-lg">
+              {config.heroBody}
+            </p>
+            <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:items-center">
+              <a
+                href={V2_BOOK_DEMO_PATH}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="group inline-flex min-h-11 w-fit items-center gap-3 rounded-full bg-primary py-1.5 pl-6 pr-1.5 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary-deep"
+              >
+                Book a Demo
+                <span className="grid h-9 w-9 place-items-center rounded-full bg-primary-foreground text-primary transition-transform group-hover:translate-x-0.5">
+                  <ArrowRight className="h-4 w-4" />
+                </span>
+              </a>
+              <a
+                href="#how-it-works"
+                className="inline-flex min-h-11 w-fit items-center rounded-full border border-border bg-white px-6 py-3 text-sm font-medium text-black transition-colors hover:bg-white/90"
+              >
+                Explore Workflow
+              </a>
+            </div>
+            {showBlueFlow ? null : (
+              <ul className="mt-8 flex flex-wrap gap-x-6 gap-y-2 text-sm text-muted-foreground">
+                {config.heroPills.map(({ icon, label }) => {
+                  const Icon = PLATFORM_ICONS[icon];
+                  return (
+                    <li key={label} className="inline-flex items-center gap-2">
+                      <Icon className="h-4 w-4 text-primary" aria-hidden />
+                      {label}
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+          </div>
+
+          <div className="animate-rise min-w-0 w-full max-w-full" style={{ animationDelay: "80ms" }}>
+            <ProductExperienceMockup variant={config.productVariant} />
+          </div>
         </div>
       </div>
     </section>
@@ -917,7 +938,7 @@ export function PlatformModuleProduct({ config }: ConfigProps) {
         <SectionHead
           eyebrow="Product experience"
           title="See the workflow, not just the promise"
-          copy="Every interface is original and clearly marked Illustrative workflow. No fake customer records, invented dashboards or false playback controls."
+          copy="See screening, interview and workforce workflows in the product interface."
         />
         {config.productVariant === "voice" ? (
           <VoiceProductExperience />

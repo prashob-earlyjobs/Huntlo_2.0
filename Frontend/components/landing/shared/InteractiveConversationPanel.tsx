@@ -31,7 +31,10 @@ type InteractiveConversationPanelProps = {
   fields?: readonly InteractiveField[];
   nextAction?: string;
   onNextAction?: () => void;
-  footer?: string;
+  /** Optional panel footer. Omit or pass `null` to hide. */
+  footer?: string | null;
+  /** Header badge label. Pass `null` or omit to hide. */
+  badge?: string | null;
   className?: string;
   /** Auto-advance messages when playing. */
   autoPlay?: boolean;
@@ -51,7 +54,8 @@ export function InteractiveConversationPanel({
   fields,
   nextAction,
   onNextAction,
-  footer = "Illustrative workflow · no live call",
+  footer = null,
+  badge = null,
   className,
   autoPlay = true,
 }: InteractiveConversationPanelProps) {
@@ -103,9 +107,11 @@ export function InteractiveConversationPanel({
             ) : null}
           </div>
         </div>
-        <span className="shrink-0 rounded-full border border-border bg-secondary px-2 py-0.5 text-[10px] font-medium text-muted-foreground sm:px-2.5 sm:py-1 sm:text-[11px]">
-          Sample
-        </span>
+        {badge ? (
+          <span className="shrink-0 rounded-full border border-border bg-secondary px-2 py-0.5 text-[10px] font-medium text-muted-foreground sm:px-2.5 sm:py-1 sm:text-[11px]">
+            {badge}
+          </span>
+        ) : null}
       </div>
 
       {tabs && tabs.length > 0 ? (
@@ -143,7 +149,7 @@ export function InteractiveConversationPanel({
         <div className="min-w-0 space-y-3 p-3.5 sm:space-y-4 sm:p-5">
           <ul
             className="min-h-[8.5rem] space-y-2.5 sm:min-h-[10.5rem] sm:space-y-3"
-            aria-label="Sample conversation"
+            aria-label="Conversation"
             aria-live="polite"
           >
             {messages.slice(0, visibleCount).map((line, index) => {
@@ -251,9 +257,11 @@ export function InteractiveConversationPanel({
         ) : null}
       </div>
 
-      <div className="border-t border-border px-3.5 py-2 text-[11px] text-muted-foreground sm:px-5 sm:py-2.5">
-        {footer}
-      </div>
+      {footer ? (
+        <div className="border-t border-border px-3.5 py-2 text-[11px] text-muted-foreground sm:px-5 sm:py-2.5">
+          {footer}
+        </div>
+      ) : null}
     </div>
   );
 }

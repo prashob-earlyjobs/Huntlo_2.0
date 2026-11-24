@@ -76,8 +76,8 @@ export function buildPageMetadata({
       canonical: url,
     },
     robots: {
-      index: true,
-      follow: true,
+      index: process.env.NEXT_PUBLIC_ALLOW_INDEXING !== "false",
+      follow: process.env.NEXT_PUBLIC_ALLOW_INDEXING !== "false",
     },
     openGraph: {
       title: resolvedOgTitle,

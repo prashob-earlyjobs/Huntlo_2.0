@@ -42,7 +42,7 @@ export const MANUFACTURING: IndustryLandingConfig = {
     illustration: {
       variant: "plant-timeline",
       header: "Plant Workforce Onboarding Timeline",
-      candidate: "Ravi K. — fictional example",
+      candidate: "Ravi K.",
       location: "Bengaluru Manufacturing Unit",
       role: "Production Operator",
       owner: "Plant HR",
@@ -105,7 +105,7 @@ export const MANUFACTURING: IndustryLandingConfig = {
         },
       ],
       initialStageIndex: 1,
-      label: "Illustrative plant timeline",
+      label: "Plant timeline",
     },
   },
   aeo: {
@@ -224,7 +224,7 @@ export const MANUFACTURING: IndustryLandingConfig = {
     fields: [
       { label: "Plant", value: "Bengaluru Manufacturing Unit" },
       { label: "Role", value: "Production Operator" },
-      { label: "Candidate", value: "Ravi K. — fictional example" },
+      { label: "Candidate", value: "Ravi K." },
       { label: "Shift", value: "Day shift preferred" },
       { label: "Joining", value: "Pending confirmation" },
       { label: "Responsible owner", value: "Plant HR" },
@@ -235,7 +235,7 @@ export const MANUFACTURING: IndustryLandingConfig = {
       "Joining Coordination",
       "Workforce Check-in",
     ],
-    label: "Illustrative plant timeline · fictional example",
+    label: "Plant timeline",
   },
   businessValue: {
     h2: "Make Plant Workforce Communication Easier to Coordinate.",
@@ -313,7 +313,7 @@ export const MANUFACTURING: IndustryLandingConfig = {
     { label: "Concern Identification", href: "/solutions/concern-identification" },
     { label: "AI Retention Agents", href: "/solutions/ai-retention-agents" },
     { label: "AI Onboarding Agents", href: "/solutions/ai-onboarding-agents" },
-    { label: "Huntlo Voice", href: "/platform/voice" },
+    { label: "Huntlo Voice AI", href: "/platform/voice-ai" },
     { label: "Logistics & Warehousing", href: "/industries/logistics-warehousing" },
   ],
   aiAskPrompt: `What is Huntlo AI voice hiring for manufacturing on ${MANUFACTURING_PATH} (https://www.huntlo.ai${MANUFACTURING_PATH})? How do voice-powered workflows support worker screening, plant joining coordination and HR follow-up?`,

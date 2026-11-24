@@ -6,7 +6,7 @@ export const MARKETING_PAGES = {
     eyebrow: "Company",
     title: "About Huntlo — Building Agentic AI Infrastructure for the Future of Recruiting",
     description:
-      "Huntlo is agentic AI recruiting infrastructure built by the EarlyJobs team — helping staffing agencies, enterprises & GCCs hire faster with autonomous AI agents.",
+      "Huntlo is agentic AI recruiting infrastructure — helping staffing agencies, enterprises & GCCs hire faster with autonomous AI agents.",
     ogImage: OG_IMAGES.about,
   },
   careers: {
@@ -20,9 +20,9 @@ export const MARKETING_PAGES = {
   contact: {
     path: "/contact",
     eyebrow: "Company",
-    title: "Contact us",
+    title: "Contact Huntlo | Sales, Support & General Enquiries",
     description:
-      "Get in touch with Huntlo for sales, support, partnerships, and security inquiries. Book a demo or email our team.",
+      "Contact Huntlo for product enquiries, AI voice solutions, partnerships, demos and general questions. Connect with our team.",
     ogImage: OG_IMAGES.platform,
   },
   faqs: {

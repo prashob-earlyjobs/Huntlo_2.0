@@ -49,7 +49,7 @@ export const HUNTLO_VS_PARADOX: CompareVsCompetitorContent = {
     competitorVisual:
       "Paradox is known for conversational recruiting and candidate-facing hiring automation.",
     panelTitle: "Conversation to workflow",
-    panelSubtitle: "Huntlo vs Paradox · illustrative comparison",
+    panelSubtitle: "Huntlo vs Paradox",
   },
   directAnswer: {
     h2: "How Does Huntlo Compare with Paradox?",
@@ -247,7 +247,7 @@ export const HUNTLO_VS_PARADOX: CompareVsCompetitorContent = {
   },
   productExperience: {
     h2: "A Clearer View of Multi-Location Hiring.",
-    label: "Illustrative multi-location hiring context.",
+    label: "Multi-location hiring context",
     candidate: "Bengaluru store pipeline",
     role: "Retail Associate",
     conversationOutcome: "Candidate availability confirmed for Bengaluru location preference.",

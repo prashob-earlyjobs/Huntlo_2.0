@@ -69,7 +69,7 @@ export const AI_SURVEY_AGENT: ScreeningWorkflowConfig = {
       "Huntlo approaches conversational employee surveys as an operational journey rather than a call-volume target. The team defines what must be learned, which answers need attention and who owns the next step.",
     ],
     notice:
-      "This is an illustrative industry scenario, not a claim about a named Huntlo customer.",
+      "Industry scenario.",
   },
   how: {
     id: "workflow",
@@ -112,7 +112,7 @@ export const AI_SURVEY_AGENT: ScreeningWorkflowConfig = {
       "The team sees a time-stamped outcome rather than an unverified label.",
     ],
     notice:
-      "This practical scenario describes a possible workflow; it should not be represented as a live integration or client case study.",
+      "Product workflow.",
   },
   useful: {
     id: "useful-results",
@@ -171,7 +171,7 @@ export const AI_SURVEY_AGENT: ScreeningWorkflowConfig = {
   limitationNotice: {
     title: "Limitations and product truth",
     items: [
-      "Illustrative workflow only — not a live customer case study or audio demo.",
+      "Product workflow overview.",
       "No automatic employment decisions from unreviewed AI responses.",
       "Integrations, languages and automated actions require verification before deployment claims.",
       `Capability status: ${AI_SURVEY_AGENT_CAPABILITY_STATUS}. Indexation follows product approval.`,
@@ -297,7 +297,7 @@ export const AI_SURVEY_AGENT: ScreeningWorkflowConfig = {
   ],
   demoTitle: "Huntlo AI Survey Agent",
   demoSubtitle: "Protected feedback themes — silent simulation",
-  demoFooter: "Huntlo Voice · Conversational employee surveys · Illustrative outcome",
+  demoFooter: "Huntlo Voice AI · Conversational employee surveys",
   aiAskTopic: "Huntlo AI Survey Agent voice workflow",
   aiAskPrompt: `What is the Huntlo AI Survey Agent on ${AI_SURVEY_AGENT_PATH} (https://www.huntlo.ai${AI_SURVEY_AGENT_PATH})? How does a conversational employee survey voice workflow collect answers and route a human-reviewed next action?`,
 };

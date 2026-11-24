@@ -72,7 +72,7 @@ export const EMPLOYEE_PULSE_SURVEYS: ScreeningWorkflowConfig = {
       "Huntlo approaches recurring pulse feedback as an operational journey rather than a call-volume target. The team defines what must be learned, which answers need attention and who owns the next step.",
     ],
     notice:
-      "This is an illustrative industry scenario, not a claim about a named Huntlo customer.",
+      "Industry scenario.",
   },
   how: {
     id: "workflow",
@@ -115,7 +115,7 @@ export const EMPLOYEE_PULSE_SURVEYS: ScreeningWorkflowConfig = {
       "The team sees a time-stamped outcome rather than an unverified label.",
     ],
     notice:
-      "This practical scenario describes a possible workflow; it should not be represented as a live integration or client case study.",
+      "Product workflow.",
   },
   useful: {
     id: "useful-results",
@@ -174,7 +174,7 @@ export const EMPLOYEE_PULSE_SURVEYS: ScreeningWorkflowConfig = {
   limitationNotice: {
     title: "Limitations and product truth",
     items: [
-      "Illustrative workflow only — not a live customer case study or audio demo.",
+      "Product workflow overview.",
       "No automatic employment decisions from unreviewed AI responses.",
       "Integrations, languages and automated actions require verification before deployment claims.",
       `Capability status: ${EMPLOYEE_PULSE_SURVEYS_CAPABILITY_STATUS}. Indexation follows product approval.`,
@@ -300,7 +300,7 @@ export const EMPLOYEE_PULSE_SURVEYS: ScreeningWorkflowConfig = {
   ],
   demoTitle: "Huntlo Employee Pulse Surveys",
   demoSubtitle: "Protected feedback themes — silent simulation",
-  demoFooter: "Huntlo Voice · Recurring pulse feedback · Illustrative outcome",
+  demoFooter: "Huntlo Voice AI · Recurring pulse feedback",
   aiAskTopic: "Huntlo Employee Pulse Surveys voice workflow",
   aiAskPrompt: `What are Huntlo Employee Pulse Surveys on ${EMPLOYEE_PULSE_SURVEYS_PATH} (https://www.huntlo.ai${EMPLOYEE_PULSE_SURVEYS_PATH})? How does a recurring pulse feedback voice workflow collect answers and route a human-reviewed next action?`,
 };

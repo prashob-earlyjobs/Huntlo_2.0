@@ -46,8 +46,8 @@ export const STAFFING_RECRUITMENT: IndustryLandingConfig = {
     illustration: {
       variant: "candidate-engagement",
       header: "Candidate Engagement Workflow",
-      candidate: "Ananya R. — fictional example",
-      location: "Agency desk · Illustrative Client A",
+      candidate: "Ananya R.",
+      location: "Agency desk · Client A",
       role: "Customer Support Executive",
       owner: "Recruiter review",
       pipeline: [
@@ -84,9 +84,9 @@ export const STAFFING_RECRUITMENT: IndustryLandingConfig = {
           status: "Profiles available for rediscovery",
           infoCards: [
             { label: "Requirement", value: "Customer Support Executive" },
-            { label: "Client", value: "Illustrative Client A" },
+            { label: "Client", value: "Client A" },
             { label: "Source pool", value: "Existing agency database" },
-            { label: "Candidates surfaced", value: "3 illustrative profiles" },
+            { label: "Candidates surfaced", value: "3 profiles" },
             { label: "Engagement", value: "Not started" },
             { label: "Recruiter review", value: "Pending discovery" },
           ],
@@ -98,7 +98,7 @@ export const STAFFING_RECRUITMENT: IndustryLandingConfig = {
           status: "Role-relevant candidates organised",
           infoCards: [
             { label: "Requirement", value: "Customer Support Executive" },
-            { label: "Client", value: "Illustrative Client A" },
+            { label: "Client", value: "Client A" },
             { label: "Source pool", value: "Supported sourcing capabilities" },
             { label: "Candidates surfaced", value: "Ananya R. · Rahul M. · Sneha K." },
             { label: "Engagement", value: "Ready to initiate" },
@@ -112,7 +112,7 @@ export const STAFFING_RECRUITMENT: IndustryLandingConfig = {
           status: "Conversations in progress",
           infoCards: [
             { label: "Requirement", value: "Customer Support Executive" },
-            { label: "Client", value: "Illustrative Client A" },
+            { label: "Client", value: "Client A" },
             { label: "Source pool", value: "Prioritised shortlist" },
             { label: "Candidates surfaced", value: "Voice workflows configured" },
             { label: "Engagement", value: "Interest and availability being collected" },
@@ -126,7 +126,7 @@ export const STAFFING_RECRUITMENT: IndustryLandingConfig = {
           status: "Responses organised for review",
           infoCards: [
             { label: "Requirement", value: "Customer Support Executive" },
-            { label: "Client", value: "Illustrative Client A" },
+            { label: "Client", value: "Client A" },
             { label: "Source pool", value: "Engaged candidates" },
             { label: "Candidates surfaced", value: "Structured responses ready" },
             { label: "Engagement", value: "Completed for selected profiles" },
@@ -140,7 +140,7 @@ export const STAFFING_RECRUITMENT: IndustryLandingConfig = {
           status: "Awaiting recruiter judgment",
           infoCards: [
             { label: "Requirement", value: "Customer Support Executive" },
-            { label: "Client", value: "Illustrative Client A" },
+            { label: "Client", value: "Client A" },
             { label: "Source pool", value: "Qualified shortlist" },
             { label: "Candidates surfaced", value: "Ananya R. ready for review" },
             { label: "Engagement", value: "Conversation summary available" },
@@ -150,7 +150,7 @@ export const STAFFING_RECRUITMENT: IndustryLandingConfig = {
         },
       ],
       initialStageIndex: 3,
-      label: "Illustrative Huntlo workflow — fictional candidate data.",
+      label: "Huntlo workflow",
     },
   },
   aeo: {
@@ -275,12 +275,12 @@ export const STAFFING_RECRUITMENT: IndustryLandingConfig = {
     shift: "15 days",
     joining: "Awaiting recruiter review",
     conversationSummary:
-      "Engagement completed. Qualification information collected for Illustrative Client A's Customer Support Associate requirement and organised for recruiter review.",
+      "Engagement completed. Qualification information collected for Client A's Customer Support Associate requirement and organised for recruiter review.",
     nextAction: "Review candidate responses",
     fields: [
       { label: "Role", value: "Customer Support Associate" },
-      { label: "Client", value: "Illustrative Client A" },
-      { label: "Candidate", value: "Ananya R. — fictional example" },
+      { label: "Client", value: "Client A" },
+      { label: "Candidate", value: "Ananya R." },
       { label: "Experience", value: "2 years" },
       { label: "Location", value: "Bengaluru" },
       { label: "Availability", value: "15 days" },
@@ -293,7 +293,7 @@ export const STAFFING_RECRUITMENT: IndustryLandingConfig = {
       "Qualification information collected",
       "Recruiter review pending",
     ],
-    label: "Illustrative workflow — not live customer data.",
+    label: "Workflow"
   },
   businessValue: {
     h2: "Make Existing Candidate Relationships More Useful.",
@@ -332,10 +332,10 @@ export const STAFFING_RECRUITMENT: IndustryLandingConfig = {
         href: "/platform/ai-engagement",
       },
       {
-        title: "Huntlo Voice",
+        title: "Huntlo Voice AI",
         body: "Support conversational candidate interactions and information collection.",
-        cta: "Explore Huntlo Voice",
-        href: "/platform/voice",
+        cta: "Explore Huntlo Voice AI",
+        href: "/platform/voice-ai",
       },
     ],
   },
@@ -402,7 +402,7 @@ export const STAFFING_RECRUITMENT: IndustryLandingConfig = {
     { label: "AI Sourcing", href: "/platform/ai-sourcing" },
     { label: "AI Engagement", href: "/platform/ai-engagement" },
     { label: "Candidate Qualification", href: "/solutions/candidate-qualification" },
-    { label: "Huntlo Voice", href: "/platform/voice" },
+    { label: "Huntlo Voice AI", href: "/platform/voice-ai" },
     { label: "Candidate Sourcing", href: "/solutions/candidate-sourcing" },
     { label: "BPO & Support", href: "/industries/bpo-customer-support" },
   ],

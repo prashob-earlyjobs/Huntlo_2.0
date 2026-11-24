@@ -96,7 +96,7 @@ export const PLATFORM_AI_SOURCING: PlatformModuleConfig = {
     {
       question: "Does the website include a live voice demo?",
       answer:
-        "No. The website shows illustrative visual workflows and offers a way to request a product demonstration.",
+        "No. The website shows visual workflows and offers a way to request a product demonstration.",
     },
     {
       question: "Can this replace a human recruiter or HR team?",
@@ -114,7 +114,7 @@ export const PLATFORM_AI_SOURCING: PlatformModuleConfig = {
   related: [
     { label: "AI Sourcing (verified)", href: "/sourcing" },
     { label: "AI Engagement", href: "/platform/ai-engagement" },
-    { label: "Huntlo Voice", href: "/platform/voice" },
+    { label: "Huntlo Voice AI", href: "/platform/voice-ai" },
   ],
   aboutName: "Huntlo AI Sourcing",
 };

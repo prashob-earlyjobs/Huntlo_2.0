@@ -72,7 +72,7 @@ export const NEW_HIRE_CHECK_IN_SURVEYS: ScreeningWorkflowConfig = {
       "Huntlo approaches 30/60/90-day check-ins as an operational journey rather than a call-volume target. The team defines what must be learned, which answers need attention and who owns the next step.",
     ],
     notice:
-      "This is an illustrative industry scenario, not a claim about a named Huntlo customer.",
+      "Industry scenario.",
   },
   how: {
     id: "workflow",
@@ -115,7 +115,7 @@ export const NEW_HIRE_CHECK_IN_SURVEYS: ScreeningWorkflowConfig = {
       "The team sees a time-stamped outcome rather than an unverified label.",
     ],
     notice:
-      "This practical scenario describes a possible workflow; it should not be represented as a live integration or client case study.",
+      "Product workflow.",
   },
   useful: {
     id: "useful-results",
@@ -174,7 +174,7 @@ export const NEW_HIRE_CHECK_IN_SURVEYS: ScreeningWorkflowConfig = {
   limitationNotice: {
     title: "Limitations and product truth",
     items: [
-      "Illustrative workflow only — not a live customer case study or audio demo.",
+      "Product workflow overview.",
       "No automatic employment decisions from unreviewed AI responses.",
       "Integrations, languages and automated actions require verification before deployment claims.",
       `Capability status: ${NEW_HIRE_CHECK_IN_SURVEYS_CAPABILITY_STATUS}. Indexation follows product approval.`,
@@ -300,7 +300,7 @@ export const NEW_HIRE_CHECK_IN_SURVEYS: ScreeningWorkflowConfig = {
   ],
   demoTitle: "Huntlo New-Hire Check-In Surveys",
   demoSubtitle: "Protected feedback themes — silent simulation",
-  demoFooter: "Huntlo Voice · 30/60/90-day check-ins · Illustrative outcome",
+  demoFooter: "Huntlo Voice AI · 30/60/90-day check-ins",
   aiAskTopic: "Huntlo New-Hire Check-In Surveys voice workflow",
   aiAskPrompt: `What are Huntlo New-Hire Check-In Surveys on ${NEW_HIRE_CHECK_IN_SURVEYS_PATH} (https://www.huntlo.ai${NEW_HIRE_CHECK_IN_SURVEYS_PATH})? How does a 30/60/90-day check-in voice workflow collect answers and route a human-reviewed next action?`,
 };

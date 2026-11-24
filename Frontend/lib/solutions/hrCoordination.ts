@@ -122,7 +122,7 @@ export const HR_COORDINATION: PlatformModuleConfig = {
     {
       question: "How are pending joining requirements tracked?",
       answer:
-        "The landing page shows illustrative status and ownership patterns. Document management, verification or HRMS synchronisation should only be described after confirming they are available in the live product.",
+        "The landing page shows status and ownership patterns. Document management, verification or HRMS synchronisation should only be described after confirming they are available in the live product.",
     },
     {
       question: "Does AI HR coordination eliminate the need for HR teams?",
@@ -134,7 +134,7 @@ export const HR_COORDINATION: PlatformModuleConfig = {
     "Explore how Huntlo connects employee conversations, onboarding requirements and HR coordination.",
   related: [
     { label: "AI Onboarding Agents", href: "/solutions/ai-onboarding-agents" },
-    { label: "Huntlo Voice", href: "/platform/voice" },
+    { label: "Huntlo Voice AI", href: "/platform/voice-ai" },
     { label: "AI Engagement", href: "/platform/ai-engagement" },
   ],
   aboutName: "Huntlo AI HR Coordination",

@@ -5,7 +5,7 @@ const LOGO_SRC = "/logo_3.png";
 interface BrandLogoProps {
   /** `full` shows the logo lockup with optional tagline; `compact` shows the mark. */
   variant?: "full" | "compact";
-  /** Hide the “Recruiting workspace · EarlyJobs” tagline in full mode. */
+  /** Hide the “Recruiting workspace · Huntlo” tagline in full mode. */
   showTagline?: boolean;
   className?: string;
 }
@@ -49,7 +49,7 @@ export function BrandLogo({
       <BrandMark />
       {showTagline ? (
         <span className="truncate text-[10px] font-medium text-muted-foreground">
-          Recruiting workspace · EarlyJobs
+          Recruiting workspace · Huntlo
         </span>
       ) : null}
     </span>
