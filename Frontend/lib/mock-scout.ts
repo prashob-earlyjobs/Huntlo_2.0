@@ -18,11 +18,9 @@ export const PEOPLE_SCOUT_LOOKUP_TYPES = [
   "Email Address",
 ] as const satisfies readonly LookupType[];
 
-/** Easy Scout: LinkedIn + DIN via EazyReach. */
+/** Easy Scout looks up a person from a LinkedIn profile link. */
 export const EASY_SCOUT_LOOKUP_TYPES = [
   "LinkedIn URL",
-  "LinkedIn Username",
-  "DIN",
 ] as const satisfies readonly LookupType[];
 
 export const LOOKUP_PLACEHOLDERS: Record<LookupType, string> = {
