@@ -191,7 +191,7 @@ export function LegacyNavbar() {
 
         <div className="hidden items-center gap-2 lg:flex">
           <Button variant="ghost" asChild>
-            <a href="#signin">Sign In</a>
+            <a href="/login">Sign In</a>
           </Button>
           <Button variant="brand" asChild>
             <a href={V2_BOOK_DEMO_PATH} target="_blank" rel="noopener noreferrer">
@@ -252,7 +252,7 @@ export function LegacyNavbar() {
             </div>
             <div className="grid grid-cols-2 gap-3">
               <Button variant="outline" size="lg" asChild>
-                <a href="#signin">Sign In</a>
+                <a href="/login">Sign In</a>
               </Button>
               <Button variant="brand" size="lg" asChild>
                 <a
