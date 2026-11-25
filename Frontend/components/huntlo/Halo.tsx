@@ -11,7 +11,7 @@ const onboardingAudio = "/audio/onboarding-agent.wav";
 
 export function HaloHero() {
   return (
-    <section id="top" className="container-x pt-14 md:pt-20">
+    <section id="top" className="container-x pt-14 pb-8 md:pt-20">
       <div className="animate-rise mx-auto max-w-3xl text-center">
         <Eyebrow>Huntlo Voice AI · AI workforce agents</Eyebrow>
         <h1 className="font-display-tight mt-6 text-[clamp(2.5rem,1.6rem+3.4vw,4.25rem)] text-foreground">AI agents that turn conversations <br className="hidden sm:block" />into workforce outcomes.</h1>
