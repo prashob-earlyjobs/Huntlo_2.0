@@ -11,8 +11,13 @@ import { listSolutionPages } from "@/lib/solutionPages";
 import { TOOL_PAGES, TOOLS_PATH, toolPath } from "@/lib/toolsPages";
 
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://www.huntlo.ai";
+const allowIndexing = process.env.NEXT_PUBLIC_ALLOW_INDEXING !== "false";
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
+  if (!allowIndexing) {
+    return [];
+  }
+
   const blogPosts = await fetchBlogSitemapEntries();
 
   const staticRoutes: MetadataRoute.Sitemap = [
