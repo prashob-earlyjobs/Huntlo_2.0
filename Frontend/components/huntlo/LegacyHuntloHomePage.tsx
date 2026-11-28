@@ -7,6 +7,7 @@ import { Capabilities } from "@/components/huntlo/Capabilities";
 import { Integrations } from "@/components/huntlo/Integrations";
 import { ToolRing } from "@/components/huntlo/ToolRing";
 import { SolutionsVisualCards } from "@/components/huntlo/SolutionsVisualCards";
+import { AgentMetrics } from "@/components/huntlo/AgentMetrics";
 import { Faq, LegacyFooter } from "@/components/huntlo/Closing";
 
 /** Homepage — preserved section order and chrome from the former /new route. */
@@ -23,6 +24,7 @@ export function LegacyHuntloHomePage() {
         <ToolRing />
         <Integrations />
         <SolutionsVisualCards />
+        <AgentMetrics />
         <Faq />
         <LightCta />
       </main>
